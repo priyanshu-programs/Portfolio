@@ -1,26 +1,401 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@font-face {
+  font-family: "Citadel Script Std";
+  src: url("/fonts/CitadelScriptStd.woff2") format("woff2"),
+    url("/fonts/CitadelScriptStd.woff") format("woff"),
+    url("/fonts/CitadelScriptStd.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --color-cream: #fffcfa;
+  --color-ink: #1d222e;
+  --color-wine: #770000;
+  --color-divider: #d7d7d8;
+  --color-muted: #858ea3;
+  --color-subtle: #5c5c5c;
+  --color-border-deep: #13284b;
+
+  --font-sans: var(--font-hanken), "Helvetica Neue", Arial, sans-serif;
+  --font-script: "Citadel Script Std";
+  --font-oswald: var(--font-oswald);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Marquee ─────────────────────────────────────────── */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
   }
 }
 
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+/* ── Ambient Glow Breath ─────────────────────────────── */
+@keyframes glow-breathe {
+
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
+.animate-glow-breathe {
+  animation: glow-breathe 6s ease-in-out infinite;
+}
+
+/* ── Pill Heartbeat ──────────────────────────────────── */
+@keyframes heartbeat {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.15);
+    opacity: 0.7;
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 2.4s ease-in-out infinite;
+}
+
+/* ── Liquid Flowing Gradient ─────────────────────────── */
+@keyframes liquid-flow {
+  0% {
+    background-position: 0% 0%;
+    background-size: 300% 300%;
+  }
+
+  33% {
+    background-position: 100% 100%;
+    background-size: 400% 400%;
+  }
+
+  66% {
+    background-position: 50% 0%;
+    background-size: 350% 350%;
+  }
+
+  100% {
+    background-position: 0% 0%;
+    background-size: 300% 300%;
+  }
+}
+
+.animate-flow-gradient {
+  animation: liquid-flow 5s ease-in-out infinite;
+}
+
+/* ── Lenis Smooth Scroll ─────────────────────────────── */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+/* ── Hide Original Cursor ───────────────────────────────── */
+* {
+  cursor: none !important;
+}
+
+/* ── Resets ───────────────────────────────────────────── */
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Kill the Tailwind v4 default border-color on all elements.
+   Without this, any element that accidentally gets a border-width
+   (e.g. GSAP pin-spacers, pseudo-elements) will render a visible line. */
+*,
+*::before,
+*::after {
+  border-color: transparent;
+}
+
+/* GSAP ScrollTrigger pin-spacers can create 1px sub-pixel gaps
+   between pinned sections. Force them to be seamless. */
+.pin-spacer {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+html,
+html * {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE / Edge */
+}
+
+html::-webkit-scrollbar,
+html *::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+body {
+  background: #ffffff;
+  color: #000;
+  font-family: var(--font-hanken), "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html.is-transitioning {
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+
+body.is-transitioning {
+  overflow-x: hidden !important;
+  overscroll-behavior: none;
+  pointer-events: none !important;
+}
+
+.page {
+  width: 100%;
+}
+
+.no-overflow {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+/* ── Fluid Typography Utilities (Tailwind v4 @utility API) ── */
+
+@utility text-hero-label {
+  /* 22px → 30px */
+  font-size: clamp(1.375rem, 1.25vw + 0.875rem, 1.875rem);
+}
+
+@utility text-hero-desc {
+  /* 15px → 18px */
+  font-size: clamp(0.9375rem, 0.47vw + 0.74rem, 1.125rem);
+}
+
+@utility text-body {
+  /* 15px → 18px — body copy & descriptors */
+  font-size: clamp(0.9375rem, 0.4vw + 0.8rem, 1.125rem);
+}
+
+@utility text-caption {
+  /* 11px → 13px — labels, tags, small UI */
+  font-size: clamp(0.6875rem, 0.2vw + 0.62rem, 0.8125rem);
+}
+
+@utility text-about-quote {
+  /* 21.8px → 40.6px fluid — about section quote (+30%) */
+  font-size: clamp(1.365rem, 2.184vw + 0.78rem, 2.535rem);
+}
+
+/* ── Magnetic Hover ──────────────────────────────────── */
+.magnetic-hover {
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+
+.magnetic-hover:hover {
+  transform: scale(1.03) translateY(-1px);
+}
+
+/* ── Global Noise Overlay ────────────────────────────── */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+}
+
+/* ── Spinner Loader ───────────────────────────────────── */
+.spinner-loader {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 35px;
+  height: 35px;
+  margin-top: -17.5px;
+  margin-left: -17.5px;
+}
+
+.spinner-loader:before,
+.spinner-loader:after {
+  content: '';
+  box-sizing: border-box;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-image: url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+Cjxzdmcgd2lkdGg9IjI2NnB4IiBoZWlnaHQ9IjI5N3B4IiB2aWV3Qm94PSIwIDAgMjY2IDI5NyIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4bWxuczpza2V0Y2g9Imh0dHA6Ly93d3cuYm9oZW1pYW5jb2RpbmcuY29tL3NrZXRjaC9ucyI+CiAgICA8dGl0bGU+c3Bpbm5lcjwvdGl0bGU+CiAgICA8ZGVzY3JpcHRpb24+Q3JlYXRlZCB3aXRoIFNrZXRjaCAoaHR0cDovL3d3dy5ib2hlbWlhbmNvZGluZy5jb20vc2tldGNoKTwvZGVzY3JpcHRpb24+CiAgICA8ZGVmcz48L2RlZnM+CiAgICA8ZyBpZD0iUGFnZS0xIiBzdHJva2U9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIiBza2V0Y2g6dHlwZT0iTVNQYWdlIj4KICAgICAgICA8cGF0aCBkPSJNMTcxLjUwNzgxMywzLjI1MDAwMDM4IEMyMjYuMjA4MTgzLDEyLjg1NzcxMTEgMjk3LjExMjcyMiw3MS40OTEyODIzIDI1MC44OTU1OTksMTA4LjQxMDE1NSBDMjE2LjU4MjAyNCwxMzUuODIwMzEgMTg2LjUyODQwNSw5Ny4wNjI0OTY0IDE1Ni44MDA3NzQsODUuNzczNDM0NiBDMTI3LjA3MzE0Myw3NC40ODQzNzIxIDc2Ljg4ODQ2MzIsODQuMjE2MTQ2MiA2MC4xMjg5MDY1LDEwOC40MTAxNTMgQy0xNS45ODA0Njg1LDIxOC4yODEyNDcgMTQ1LjI3NzM0NCwyOTYuNjY3OTY4IDE0NS4yNzczNDQsMjk2LjY2Nzk2OCBDMTQ1LjI3NzM0NCwyOTYuNjY3OTY4IC0yNS40NDkyMTg3LDI1Ny4yNDIxOTggMy4zOTg0Mzc1LDEwOC40MTAxNTUgQzE2LjMwNzA2NjEsNDEuODExNDE3NCA4NC43Mjc1ODI5LC0xMS45OTIyOTg1IDE3MS41MDc4MTMsMy4yNTAwMDAzOCBaIiBpZD0iUGF0aC0xIiBmaWxsPSIjMDAwMDAwIiBza2V0Y2g6dHlwZT0iTVNTaGFwZUdyb3VwIj48L3BhdGg+CiAgICA8L2c+Cjwvc3ZnPg==");
+}
+
+.spinner-loader:before {
+  animation: rotateBefore 750ms infinite linear reverse;
+}
+
+.spinner-loader:after {
+  animation: rotateAfter 750ms infinite linear;
+}
+
+@keyframes rotateBefore {
+  0% {
+    transform: perspective(340px) rotateX(60deg) rotateY(45deg) rotateZ(0deg);
+  }
+
+  100% {
+    transform: perspective(340px) rotateX(60deg) rotateY(45deg) rotateZ(-360deg);
+  }
+}
+
+@keyframes rotateAfter {
+  0% {
+    transform: perspective(340px) rotateX(240deg) rotateY(45deg) rotateZ(0deg);
+  }
+
+  100% {
+    transform: perspective(340px) rotateX(240deg) rotateY(45deg) rotateZ(360deg);
+  }
+}
+
+/* ── Page Transition Stage ──────────────────────────────── */
+.page-transition-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  contain: layout paint style;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.page-transition-snapshot {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  background: #ffffff;
+}
+
+.page-transition-snapshot-page {
+  max-width: none;
+}
+
+.page-transition-curtain {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.page-transition-curtain-top {
+  transform-origin: top left;
+  transform: translate3d(0, 0, 0) scaleY(0);
+}
+
+.page-transition-curtain-bottom {
+  transform-origin: top left;
+  transform: translate3d(0, 100%, 0) scaleY(0);
+}
+
+.page-transition-counter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.page-transition-counter p {
+  margin: 0;
+  font-family: var(--font-oswald), "Helvetica Neue", sans-serif;
+  font-size: clamp(4rem, 13vw, 12rem);
+  font-weight: 500;
+  line-height: 0.85;
+  letter-spacing: 0;
+  color: #181818;
+}
+
+.page-transition-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #ffffff;
+  will-change: transform;
+  transform-origin: top left;
+  transform: translate3d(0, 0, 0) scaleX(0) scaleY(0);
+  backface-visibility: hidden;
+}
+
+.page-transition-band {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: #1a1a1a;
+  will-change: transform;
+  transform-origin: top left;
+  transform: translate3d(0, 0, 0) scaleX(0) scaleY(0);
+  backface-visibility: hidden;
+}
+
+/* ── Page Wrapper (animated container) ───────────────────── */
+.page-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  position: relative;
+  overflow-x: hidden;
 }

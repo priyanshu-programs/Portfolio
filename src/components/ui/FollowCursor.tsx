@@ -1,0 +1,210 @@
+'use client';
+
+import React, { useEffect } from 'react';
+
+interface FollowCursorProps {
+  color?: string;
+  zIndex?: number;
+  particles?: number;
+  rate?: number;
+}
+
+const FollowCursor: React.FC<FollowCursorProps> = ({
+  color = '#ffffff',
+  zIndex = 9999,
+  particles = 15, // Number of trailing blobs
+  rate = 0.4, // How closely they follow each other
+}) => {
+  useEffect(() => {
+    let canvas: HTMLCanvasElement;
+    let context: CanvasRenderingContext2D | null;
+    let animationFrame: number;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let cursor = { x: width / 2, y: height / 2 };
+    let particlesArray: Particle[] = [];
+    let cursorsInitted = false;
+    let isHovering = false;
+
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    );
+
+    // The original main dot
+    class Dot {
+      position: { x: number; y: number };
+      width: number; // base width
+      renderedWidth: number; // smoothly scaling width
+      lag: number;
+
+      constructor(x: number, y: number, width: number, lag: number) {
+        this.position = { x, y };
+        this.width = width;
+        this.renderedWidth = width;
+        this.lag = lag;
+      }
+    }
+
+    // Trailing particles behind the main dot
+    class Particle {
+      position: { x: number; y: number };
+      renderedSize: number = 0;
+
+      constructor(x: number, y: number) {
+        this.position = { x, y };
+      }
+    }
+
+    const dot = new Dot(width / 2, height / 2, 10, 10);
+
+    const onMouseMove = (e: MouseEvent) => {
+      cursor.x = e.clientX;
+      cursor.y = e.clientY;
+
+      const target = e.target as HTMLElement;
+      if (target) {
+        // Detect if hovering over a clickable element
+        const isClickable =
+          target.closest('a, button, [role="button"], input, select, textarea') !== null ||
+          window.getComputedStyle(target).cursor === 'pointer';
+        isHovering = isClickable;
+      }
+
+      if (!cursorsInitted) {
+        cursorsInitted = true;
+        for (let i = 0; i < particles; i++) {
+          particlesArray.push(new Particle(cursor.x, cursor.y));
+        }
+      }
+    };
+
+    const onWindowResize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      if (canvas) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+    };
+
+    const updateDot = () => {
+      const ctx = context;
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Move the main dot towards the mouse with lag
+      dot.position.x += (cursor.x - dot.position.x) / dot.lag;
+      dot.position.y += (cursor.y - dot.position.y) / dot.lag;
+
+      // Smoothly scale the main dot up by 2.5x when hovering
+      const targetDotWidth = isHovering ? dot.width * 2.5 : dot.width;
+      dot.renderedWidth += (targetDotWidth - dot.renderedWidth) * 0.2;
+
+      ctx.fillStyle = color;
+
+      // Draw the main blob constantly
+      ctx.beginPath();
+      ctx.arc(
+        dot.position.x,
+        dot.position.y,
+        dot.renderedWidth,
+        0,
+        2 * Math.PI
+      );
+      ctx.fill();
+      ctx.closePath();
+
+      // 2. Update the trailing particles following the main dot
+      let x = dot.position.x;
+      let y = dot.position.y;
+
+      particlesArray.forEach((particle, index) => {
+        const nextParticle = particlesArray[index + 1] || particlesArray[0];
+
+        particle.position.x = x;
+        particle.position.y = y;
+
+        // Target size is always relative to the main dot's rendered width
+        const targetSize = Math.max(
+          0.5,
+          dot.renderedWidth * (1 - (index + 1) / particles)
+        );
+
+        // Smoothly interpolate renderedSize towards targetSize
+        particle.renderedSize += (targetSize - particle.renderedSize) * 0.2;
+
+        // Draw trailing blob
+        if (particle.renderedSize > 0.1) {
+          ctx.beginPath();
+          ctx.arc(
+            particle.position.x,
+            particle.position.y,
+            particle.renderedSize,
+            0,
+            2 * Math.PI
+          );
+          ctx.fill();
+          ctx.closePath();
+        }
+
+        // Calculate next position
+        x += (nextParticle.position.x - particle.position.x) * rate;
+        y += (nextParticle.position.y - particle.position.y) * rate;
+      });
+    };
+
+    const loop = () => {
+      updateDot();
+      animationFrame = requestAnimationFrame(loop);
+    };
+
+    const init = () => {
+      if (prefersReducedMotion.matches) {
+        console.log('Reduced motion enabled, cursor effect skipped.');
+        return;
+      }
+
+      canvas = document.createElement('canvas');
+      context = canvas.getContext('2d');
+      canvas.style.position = 'fixed';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.pointerEvents = 'none';
+      canvas.style.mixBlendMode = 'difference';
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.zIndex = zIndex ? zIndex.toString() : '';
+      document.body.appendChild(canvas);
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('resize', onWindowResize);
+      loop();
+    };
+
+    const destroy = () => {
+      if (canvas) canvas.remove();
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('resize', onWindowResize);
+    };
+
+    prefersReducedMotion.onchange = () => {
+      if (prefersReducedMotion.matches) {
+        destroy();
+      } else {
+        init();
+      }
+    };
+
+    init();
+
+    return () => {
+      destroy();
+    };
+  }, [color, zIndex, particles, rate]);
+
+  return null;
+};
+
+export default FollowCursor;
