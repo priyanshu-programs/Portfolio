@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import TransitionLink from "@/components/transition/TransitionLink";
+import Link from "@/components/transition/SmartLink";
+import { useSiteContent } from "@/components/ContentProvider";
+import HoverPreviewCard from "@/components/ui/HoverPreviewCard";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -209,8 +211,8 @@ const AboutMeButton = () => {
       `}</style>
 
       <div className="about-btn-fx">
-        <a
-          href="#about-details"
+        <Link
+          href="/#work"
           className="about-btn-box"
           aria-label="About me"
           ref={buttonRef}
@@ -230,7 +232,7 @@ const AboutMeButton = () => {
             </svg>
           </div>
           <div className="about-btn-circle-overlay" />
-        </a>
+        </Link>
       </div>
     </>
   );
@@ -238,6 +240,9 @@ const AboutMeButton = () => {
 
 const MoreWorkButton = () => {
   const buttonRef = useRef<HTMLAnchorElement>(null);
+  // Same source the /work index counts from, so the two numbers never drift.
+  // Not homeWork — that query is sliced to the 4 pinned projects.
+  const workCount = useSiteContent()?.workProjects?.length ?? 0;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     if (!buttonRef.current) return;
@@ -387,7 +392,7 @@ const MoreWorkButton = () => {
             0 4px 8px rgba(0, 0, 0, 0.2);
         }
       `}</style>
-      <TransitionLink
+      <Link
         href="/work"
         className="pearl-btn block"
         ref={buttonRef}
@@ -396,29 +401,88 @@ const MoreWorkButton = () => {
         <div className="pearl-btn-spotlight" />
         <div className="wrap">
           <p>
-            More work <sup className="text-[0.6em] -translate-y-[0.3em]">11</sup>
+            More work
+            {workCount > 0 && (
+              <sup className="text-[0.6em] -translate-y-[0.3em]"> {workCount}</sup>
+            )}
           </p>
         </div>
-      </TransitionLink>
+      </Link>
     </>
   );
 };
 
-const WORK_ROWS = [
-  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop" },
-  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=2532&auto=format&fit=crop" },
-  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=2535&auto=format&fit=crop" },
-  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=2670&auto=format&fit=crop" },
+// Popout renders in a 300x200 box; request ~640px so retina stays crisp
+// without downloading the full ~2500px source images.
+type WorkRow = {
+  name: string;
+  tag: string;
+  image: string;
+  slug?: string;
+  bgColor?: string;
+  /** Hover-card overrides; each falls back to `image` / `bgColor`. */
+  hoverImage?: string;
+  hoverBg?: string;
+};
+
+const WORK_ROWS: WorkRow[] = [
+  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", tag: "Interaction & Development", image: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=640&auto=format&fit=crop" },
 ];
 
+const DEFAULT_QUOTE =
+  "A website is the sharpest version of\na brand or it's a missed opportunity.\nThere's not much in between.";
+const DEFAULT_SUBPARAGRAPH =
+  "Identity without execution is just a mood board. Execution\nwithout identity is just a website.\nI work at the point where they become the same thing.";
+
 export default function AboutWork() {
+  const content = useSiteContent();
+  const aboutWork = content?.aboutWork;
+  const quoteLines = (aboutWork?.quote ?? DEFAULT_QUOTE).split("\n");
+  const subParagraphLines = (
+    aboutWork?.subParagraph ?? DEFAULT_SUBPARAGRAPH
+  ).split("\n");
+  const homeWork = content?.homeWork;
+  // Memoised because hovering a row re-renders this section: a fresh array
+  // every render would re-run the preview card's parking effect mid-hover and
+  // cut the outgoing thumbnail's slide short.
+  const workRows: WorkRow[] = useMemo(() => {
+    // An empty list is a real answer — every project unpinned or hidden — and
+    // must render as nothing. The placeholders are only for a site running
+    // without Sanity at all, which is the one case `content` is null.
+    if (!content) return WORK_ROWS;
+    return (homeWork ?? []).map((p) => ({
+      name: p.title ?? "",
+      tag: p.category ?? p.services ?? "",
+      image: p.thumbnail ?? "",
+      slug: p.slug,
+      bgColor: p.bgColor,
+      hoverImage: p.hoverImage,
+      hoverBg: p.hoverBg,
+    }));
+  }, [content, homeWork]);
+
   const sectionRef = useRef<HTMLElement>(null);
-  const workContainerRef = useRef<HTMLDivElement>(null);
+  const workRowsRef = useRef<HTMLDivElement>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [smoothPosition, setSmoothPosition] = useState({ x: 0, y: 0 });
-  const [isVisible, setIsVisible] = useState(false);
-  const animationRef = useRef<number | null>(null);
+
+  // Memoised so the preview card's parking effect only re-runs when the set of
+  // thumbnails actually changes, not on every render.
+  const previewItems = useMemo(
+    () =>
+      workRows.map((row, index) => ({
+        // Suffixed with the index: a half-filled CMS entry can leave two rows
+        // sharing a slug or name, and duplicate keys break the thumbnail stack.
+        key: `${row.slug ?? row.name ?? "row"}-${index}`,
+        // `||` not `??`: an unset CMS image resolves to "", which would render
+        // an <img src=""> rather than falling through to the colour block.
+        image: row.hoverImage || row.image || undefined,
+        bgColor: row.hoverBg ?? row.bgColor,
+      })),
+    [workRows]
+  );
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -501,47 +565,12 @@ export default function AboutWork() {
     return () => ctx.revert();
   }, []);
 
-  /* ── Hover image popout: smooth lerp animation ────────── */
-  useEffect(() => {
-    const lerp = (start: number, end: number, factor: number) => {
-      return start + (end - start) * factor;
-    };
-
-    const animate = () => {
-      setSmoothPosition((prev) => ({
-        x: lerp(prev.x, mousePosition.x, 0.12),
-        y: lerp(prev.y, mousePosition.y, 0.12),
-      }));
-      animationRef.current = requestAnimationFrame(animate);
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [mousePosition]);
-
-  const handleWorkMouseMove = (e: React.MouseEvent) => {
-    if (workContainerRef.current) {
-      const rect = workContainerRef.current.getBoundingClientRect();
-      setMousePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-    }
-  };
-
   const handleRowEnter = (index: number) => {
     setHoveredIndex(index);
-    setIsVisible(true);
   };
 
   const handleRowLeave = () => {
     setHoveredIndex(null);
-    setIsVisible(false);
   };
 
   return (
@@ -563,17 +592,18 @@ export default function AboutWork() {
           <p
             className="text-about-quote leading-[1.35] text-black m-0"
             style={{
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif",
+              fontFamily: "var(--font-helv)",
               fontWeight: 300,
               letterSpacing: "-0.01em",
               margin: 0,
             }}
           >
-            <Reveal>A website is the sharpest version of</Reveal>
-            <br />
-            <Reveal>a brand or it&apos;s a missed opportunity.</Reveal>
-            <br />
-            <Reveal>There&apos;s not much in between.</Reveal>
+            {quoteLines.map((line, i) => (
+              <Fragment key={i}>
+                {i > 0 && <br />}
+                <Reveal>{line}</Reveal>
+              </Fragment>
+            ))}
           </p>
         </div>
 
@@ -582,14 +612,19 @@ export default function AboutWork() {
           <p
             className="reveal-text text-body text-black/80 m-0"
             style={{
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif",
+              fontFamily: "var(--font-helv)",
               fontWeight: 300,
               fontSize: "clamp(1.052rem, 0.449vw + 0.898rem, 1.263rem)",
               lineHeight: 1.497,
               margin: 0,
             }}
           >
-            Identity without execution is just a mood board. Execution<br />without identity is just a website.<br />I work at the point where they become the same thing.
+            {subParagraphLines.map((line, i) => (
+              <Fragment key={i}>
+                {i > 0 && <br />}
+                {line}
+              </Fragment>
+            ))}
           </p>
           <div className="reveal-text mt-8 flex justify-start items-center">
             <AboutMeButton />
@@ -604,7 +639,7 @@ export default function AboutWork() {
             id="work"
             className="reveal-bottom uppercase text-black/70 pb-4 lg:pb-5"
             style={{
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif",
+              fontFamily: "var(--font-helv)",
               fontWeight: 300,
               fontSize: "clamp(0.65625rem, 0.12vw + 0.675rem, 0.84375rem)",
               letterSpacing: "normal",
@@ -616,72 +651,67 @@ export default function AboutWork() {
       </div>
 
       {/* Divider */}
-      
+
 
       {/* Work rows */}
-      <div
-        ref={workContainerRef}
-        onMouseMove={handleWorkMouseMove}
-        className="work-rows-container mt-0 relative"
-      >
-        {/* Floating image popout */}
-        <div
-          className="pointer-events-none fixed z-50 overflow-hidden rounded-xl shadow-2xl"
-          style={{
-            left: workContainerRef.current?.getBoundingClientRect().left ?? 0,
-            top: workContainerRef.current?.getBoundingClientRect().top ?? 0,
-            transform: `translate3d(${smoothPosition.x + 24}px, ${smoothPosition.y - 110}px, 0)`,
-            opacity: isVisible ? 1 : 0,
-            scale: isVisible ? 1 : 0.8,
-            transition: "opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), scale 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-        >
-          <div className="relative w-[300px] h-[200px] bg-[#f0f0f0] rounded-xl overflow-hidden">
-            {WORK_ROWS.map((row, index) => (
-              <img
-                key={index}
-                src={row.image}
-                alt={row.name}
-                className="absolute inset-0 w-full h-full object-cover transition-all duration-500 ease-out"
-                style={{
-                  opacity: hoveredIndex === index ? 1 : 0,
-                  scale: hoveredIndex === index ? 1 : 1.1,
-                  filter: hoveredIndex === index ? "none" : "blur(10px)",
-                }}
-              />
-            ))}
-            {/* Subtle gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-          </div>
-        </div>
+      <div ref={workRowsRef} className="work-rows-container mt-0 relative">
+        <HoverPreviewCard
+          items={previewItems}
+          activeIndex={hoveredIndex}
+          containerRef={workRowsRef}
+        />
 
-        {WORK_ROWS.map((row, idx) => (
-          <div
-            key={idx}
-            className="work-row grid grid-cols-[1fr_auto] items-center py-8 lg:py-[3.5vw] gap-4 group cursor-pointer"
-            style={{ borderBottom: "0.5px solid rgba(0, 0, 0, 0.12)" }}
-            onMouseEnter={() => handleRowEnter(idx)}
-            onMouseLeave={handleRowLeave}
-          >
-            <h3
-              className="text-[40px] sm:text-[48px] lg:text-[5.2vw] leading-none tracking-tight group-hover:pl-4 transition-all duration-300"
-              style={{
-                fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif",
-                fontWeight: 300,
-              }}
+        {workRows.map((row, idx) => {
+          const rowClassName =
+            "work-row grid grid-cols-[1fr_auto] items-center py-8 lg:py-[3.5vw] gap-4 group cursor-pointer";
+          const rowStyle = { borderBottom: "0.5px solid rgba(0, 0, 0, 0.12)" };
+          const rowContent = (
+            <>
+              <h3
+                className="text-[40px] sm:text-[48px] lg:text-[5.2vw] leading-none tracking-tight group-hover:pl-4 group-hover:text-[#a0a0a0] transition-all duration-300"
+                style={{
+                  fontFamily: "var(--font-helv)",
+                  fontWeight: 300,
+                }}
+              >
+                {row.name}
+              </h3>
+              <span
+                className="text-black/70 group-hover:text-[#a0a0a0] group-hover:-translate-x-2 transition-all duration-300"
+                style={{
+                  fontFamily: "var(--font-helv)",
+                  fontSize: "clamp(1.051875rem, 0.306vw + 0.9486rem, 1.243125rem)",
+                  fontWeight: 300,
+                }}
+              >
+                {row.tag}
+              </span>
+            </>
+          );
+
+          return row.slug ? (
+            <Link
+              key={idx}
+              href={`/work/${row.slug}`}
+              className={rowClassName}
+              style={rowStyle}
+              onMouseEnter={() => handleRowEnter(idx)}
+              onMouseLeave={handleRowLeave}
             >
-              {row.name}
-            </h3>
-            <span
-              className="font-light text-black/70 group-hover:-translate-x-2 transition-transform duration-300"
-              style={{
-                fontSize: "clamp(1.051875rem, 0.306vw + 0.9486rem, 1.243125rem)",
-              }}
+              {rowContent}
+            </Link>
+          ) : (
+            <div
+              key={idx}
+              className={rowClassName}
+              style={rowStyle}
+              onMouseEnter={() => handleRowEnter(idx)}
+              onMouseLeave={handleRowLeave}
             >
-              {row.tag}
-            </span>
-          </div>
-        ))}
+              {rowContent}
+            </div>
+          );
+        })}
       </div>
 
       {/* More work button */}

@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-export default function CtaConversation() {
+export default function CtaConversation({ src }: { src?: string }) {
   return (
     <section
       id="contact"
@@ -8,7 +8,7 @@ export default function CtaConversation() {
     >
       {/* Full-bleed background image */}
       <Image
-        src="/images/cta-2hands.png"
+        src={src ?? "/images/cta-2hands.png"}
         alt=""
         fill
         sizes="100vw"
