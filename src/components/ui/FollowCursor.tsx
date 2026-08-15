@@ -76,6 +76,9 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
           particlesArray.push(new Particle(cursor.x, cursor.y));
         }
       }
+
+      // Wake the render loop if it paused after settling.
+      startLoop();
     };
 
     const onWindowResize = () => {
@@ -87,9 +90,9 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
       }
     };
 
-    const updateDot = () => {
+    const updateDot = (): boolean => {
       const ctx = context;
-      if (!ctx) return;
+      if (!ctx) return false;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -152,11 +155,50 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
         x += (nextParticle.position.x - particle.position.x) * rate;
         y += (nextParticle.position.y - particle.position.y) * rate;
       });
+
+      // Report whether anything is still visibly moving, so the loop can pause
+      // once the cursor and its trail have settled.
+      const dxToCursor = cursor.x - dot.position.x;
+      const dyToCursor = cursor.y - dot.position.y;
+      const targetWidth = isHovering ? dot.width * 2.5 : dot.width;
+      return (
+        Math.hypot(dxToCursor, dyToCursor) > 0.5 ||
+        Math.abs(targetWidth - dot.renderedWidth) > 0.5
+      );
     };
 
+    let idleFrames = 0;
+    const IDLE_LIMIT = 30; // pause ~0.5s after the cursor + trail settle
+
     const loop = () => {
-      updateDot();
+      const active = updateDot();
+      idleFrames = active ? 0 : idleFrames + 1;
+      if (idleFrames > IDLE_LIMIT) {
+        animationFrame = 0; // settled — stop until the next mouse move
+        return;
+      }
       animationFrame = requestAnimationFrame(loop);
+    };
+
+    const startLoop = () => {
+      if (
+        animationFrame ||
+        prefersReducedMotion.matches ||
+        document.visibilityState !== 'visible'
+      ) {
+        return;
+      }
+      idleFrames = 0;
+      animationFrame = requestAnimationFrame(loop);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        startLoop();
+      } else if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+      }
     };
 
     const init = () => {
@@ -179,14 +221,17 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('resize', onWindowResize);
-      loop();
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      startLoop();
     };
 
     const destroy = () => {
       if (canvas) canvas.remove();
       if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('resize', onWindowResize);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
 
     prefersReducedMotion.onchange = () => {

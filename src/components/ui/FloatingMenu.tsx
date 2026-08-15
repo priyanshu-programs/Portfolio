@@ -5,13 +5,17 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import gsap from "gsap";
-import TransitionLink from "@/components/transition/TransitionLink";
+import Link from "@/components/transition/SmartLink";
+import { useSiteContent } from "@/components/ContentProvider";
+
+const DEFAULT_NAME = "Priyanshu Roy";
+const DEFAULT_EMAIL = "priyanshuroy.official19@gmail.com";
 
 const MENU_LINKS = [
   { label: "Home", href: "/" },
-  { label: "Work", href: "/work" },
-  { label: "About", href: "/#about" },
-  { label: "Contact", href: "/#contact" },
+  { label: "Work", href: "/work", image: "/images/menu-work.webp" },
+  { label: "About", href: "/about", image: "/images/menu-about.webp" },
+  { label: "Contact", href: "/#contact", image: "/images/menu-contact.webp" },
 ];
 
 const MENU_TAGS = ["Identity", "Visualisation", "Interactive"];
@@ -25,8 +29,38 @@ const RevealLine = ({ children }: { children: ReactNode }) => (
 );
 
 export default function FloatingMenu() {
+  const content = useSiteContent();
+  const settings = content?.settings;
+  const fm = content?.floatingMenu;
+  const name = settings?.name ?? DEFAULT_NAME;
+  const email = settings?.email ?? DEFAULT_EMAIL;
+  const tags = fm?.tags?.length ? fm.tags : MENU_TAGS;
+  const menuImage = "/images/menu-home.webp";
+
   const [isVisible, setIsVisible] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  const hoveredLink = MENU_LINKS.find((item) => item.label === hoveredLabel);
+  const activeImage = hoveredLink?.image ?? menuImage;
+
+  const [imageQueue, setImageQueue] = useState<{ id: string; src: string }[]>([
+    { id: activeImage, src: activeImage },
+  ]);
+
+  useEffect(() => {
+    setImageQueue((prev) => {
+      if (prev[prev.length - 1].src === activeImage) return prev;
+      return [...prev, { id: activeImage + Date.now(), src: activeImage }];
+    });
+  }, [activeImage]);
+
+  const handleAnimationEnd = useCallback((id: string) => {
+    setImageQueue((prev) => {
+      const index = prev.findIndex((img) => img.id === id);
+      if (index > 0) return prev.slice(index);
+      return prev;
+    });
+  }, []);
   const pathname = usePathname();
   const overlayRef = useRef<HTMLDivElement>(null);
   const overlayContentRef = useRef<HTMLDivElement>(null);
@@ -263,26 +297,33 @@ export default function FloatingMenu() {
           {/* Left Column: Image */}
           <div
             ref={mediaRef}
-            className="relative hidden md:block w-[45vw] h-full shrink-0"
+            className="relative hidden md:block w-[45vw] h-full shrink-0 overflow-hidden"
           >
-            <Image
-              src="/images/services.png"
-              alt="Priyanshu Roy working across identity and web"
-              fill
-              sizes="45vw"
-              className="object-cover opacity-90"
-            />
-            <div className="absolute inset-0 bg-black/10" />
-            <div className="absolute left-10 top-[44px] text-[20px] font-light tracking-[-0.01em] text-white pointer-events-none mix-blend-difference">
-              Priyanshu Roy
+            {imageQueue.map((img, i) => (
+              <Image
+                key={img.id}
+                src={img.src}
+                alt="Priyanshu Roy working across identity and web"
+                fill
+                sizes="45vw"
+                className={`object-cover ${
+                  i === imageQueue.length - 1 && imageQueue.length > 1
+                    ? "animate-menu-image-reveal"
+                    : "z-[1]"
+                }`}
+                onAnimationEnd={() => handleAnimationEnd(img.id)}
+              />
+            ))}
+            <div className="absolute left-10 top-[39.6px] text-[20px] font-light tracking-[-0.01em] text-white pointer-events-none mix-blend-difference z-[4]">
+              {name}
             </div>
           </div>
 
           {/* Right Column: Content */}
           <div className="relative flex-1 flex flex-col justify-between px-6 pb-8 pt-[104px] sm:px-8 md:px-[8vw] md:pb-[32px] md:pt-[132px] md:overflow-y-auto">
             {/* Mobile Title */}
-            <div className="pointer-events-none absolute left-6 top-8 text-[20px] font-light tracking-[-0.01em] text-white md:hidden">
-              Priyanshu Roy
+            <div className="pointer-events-none absolute left-6 top-[28.8px] text-[20px] font-light tracking-[-0.01em] text-white mix-blend-difference z-[4] md:hidden">
+              {name}
             </div>
 
             <div className="flex flex-1 items-center w-full">
@@ -294,15 +335,17 @@ export default function FloatingMenu() {
                       return (
                         <li key={item.label}>
                           <RevealLine>
-                            <TransitionLink
+                            <Link
                               href={item.href}
                               onClick={() => closeMenu()}
+                              onMouseEnter={() => setHoveredLabel(item.label)}
+                              onMouseLeave={() => setHoveredLabel(null)}
                               className="relative group inline-block text-[clamp(46px,7vw,90px)] font-light leading-[1.05] tracking-normal"
                             >
                               {item.label}
                               <span className={`absolute left-0 bottom-[-4px] w-full h-[1.5px] bg-current origin-left transition-transform duration-300 ease-out ${isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
                                 }`} />
-                            </TransitionLink>
+                            </Link>
                           </RevealLine>
                         </li>
                       );
@@ -312,7 +355,7 @@ export default function FloatingMenu() {
 
                 <div className="self-start md:self-end md:mb-4">
                   <div className="space-y-[6px] text-[clamp(18px,1.8vw,24px)] font-light italic leading-tight text-white/80">
-                    {MENU_TAGS.map((tag) => (
+                    {tags.map((tag) => (
                       <RevealLine key={tag}>{tag}</RevealLine>
                     ))}
                   </div>
@@ -328,10 +371,10 @@ export default function FloatingMenu() {
                 <RevealLine>Available worldwide</RevealLine>
                 <RevealLine>
                   <a
-                    href="mailto:priyanshuroy.official19@gmail.com"
+                    href={`mailto:${email}`}
                     className="transition-colors hover:text-white"
                   >
-                    priyanshuroy.official19@gmail.com
+                    {email}
                   </a>
                 </RevealLine>
               </div>
@@ -341,19 +384,19 @@ export default function FloatingMenu() {
       </div>
 
       <div
-        className={`fixed right-6 top-6 z-[10020] flex items-center gap-4 transition-all duration-300 ease-in-out md:right-[40px] md:top-[44px] ${isVisible || isOpen
+        className={`fixed right-6 top-[21.6px] z-[10020] flex items-center gap-4 transition-all duration-300 ease-in-out md:right-[40px] md:top-[39.6px] ${isVisible || isOpen
           ? "pointer-events-auto translate-y-0 opacity-100"
           : "pointer-events-none -translate-y-4 opacity-0"
           }`}
       >
         <div className={`hidden md:block transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          <TransitionLink
+          <Link
             href="/#contact"
             onClick={() => closeMenu()}
             className="flex h-[56px] md:h-[60px] items-center justify-center rounded-full border border-white/20 px-8 text-[15px] text-white transition-all hover:scale-105"
           >
             Get in touch
-          </TransitionLink>
+          </Link>
         </div>
 
         <button

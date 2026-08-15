@@ -56,6 +56,13 @@ interface LiquidImageProps {
   className?: string;
 }
 
+// The WebGL texture must be same-origin (or CORS-readable). Remote images
+// (e.g. Sanity CDN URLs) are routed through our same-origin proxy so the
+// texture read doesn't taint the canvas; local /images/... paths are already
+// same-origin and used directly.
+const toTextureSrc = (src: string) =>
+  /^https?:\/\//.test(src) ? `/api/image?url=${encodeURIComponent(src)}` : src;
+
 const canCreateWebGLContext = () => {
   if (typeof window === "undefined") {
     return false;
@@ -140,6 +147,14 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
     const mouse = new Vec2(-1);
     const velocity = new Vec2();
     let needsUpdate = false;
+    // Render gating: the loop only draws while there is recent pointer input
+    // (plus a short settle window for the ripple to dissipate), when the base
+    // image needs a (re)draw, and when the element is on-screen. This keeps the
+    // GPU idle instead of rendering every frame forever.
+    let settleFrames = 0;
+    let dirty = true; // base image needs an initial/refreshed draw
+    let onScreen = true;
+    const SETTLE = 90; // ~1.5s @60fps for the ripple to fully fade
 
     const flowmap = new Flowmap(gl, {
       falloff: 0.3, // Visible but controlled ripple radius
@@ -175,12 +190,20 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
     const mesh = new Mesh(gl, { geometry, program });
 
     const img = new window.Image();
-    img.src = src;
+    // crossOrigin MUST be set before src, or a cross-origin image (e.g. a
+    // Sanity CDN URL) loads without CORS, taints the WebGL texture, and
+    // texImage2D throws a SecurityError — leaving a blank canvas.
     img.crossOrigin = "anonymous";
     img.onload = () => {
       texture.image = img;
       resize();
     };
+    // If the texture image can't load, fall back to the plain <Image> rather
+    // than showing an empty canvas.
+    img.onerror = () => {
+      showFallback();
+    };
+    img.src = toTextureSrc(src);
 
     const resize = () => {
       if (!container) return;
@@ -206,6 +229,8 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
         }
         program.uniforms.uScale.value.set(scaleX, scaleY);
       }
+
+      dirty = true; // size/texture changed — redraw the base image once
     };
 
     const resizeObserver = new ResizeObserver(resize);
@@ -249,9 +274,30 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
     container.addEventListener('touchstart', updateMouse, { passive: false });
     container.addEventListener('touchmove', updateMouse, { passive: false });
 
+    // Pause rendering entirely while the element is scrolled out of view.
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        onScreen = entries[0].isIntersecting;
+        if (onScreen) dirty = true; // repaint base image when it returns
+      },
+      { threshold: 0 }
+    );
+    intersectionObserver.observe(container);
+
     let reqId: number;
     const update = (t: number) => {
       reqId = requestAnimationFrame(update);
+
+      if (needsUpdate) settleFrames = SETTLE;
+
+      const active = settleFrames > 0;
+      // Nothing to draw: off-screen, or idle with the ripple already faded and
+      // no pending base-image redraw.
+      if (!onScreen || (!active && !dirty)) {
+        needsUpdate = false;
+        return;
+      }
+      if (active) settleFrames--;
 
       if (!needsUpdate) {
         mouse.set(-1);
@@ -268,11 +314,13 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
       program.uniforms.uTime.value = t * 0.01;
 
       renderer.render({ scene: mesh });
+      dirty = false;
     };
     reqId = requestAnimationFrame(update);
 
     return () => {
       resizeObserver.disconnect();
+      intersectionObserver.disconnect();
       window.removeEventListener('resize', resize);
       container.removeEventListener('mousemove', updateMouse);
       container.removeEventListener('touchstart', updateMouse);
@@ -289,7 +337,7 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
       aria-label={alt}
     >
       {/* Fallback image — only visible when WebGL is unavailable */}
-      <div ref={fallbackRef}>
+      <div ref={fallbackRef} className="absolute inset-0">
         <Image
           src={src}
           alt=""

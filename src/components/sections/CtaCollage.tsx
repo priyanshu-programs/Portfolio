@@ -5,6 +5,7 @@ import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import CtaConversation from "./CtaConversation";
+import { useSiteContent } from "@/components/ContentProvider";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -56,7 +57,22 @@ const Reveal = ({ children }: { children: string }) => (
   </>
 );
 
+const DEFAULT_HEADLINE = "no more forgettable work";
+const DEFAULT_REVEAL_HEADLINE = "Good work starts with a conversation.";
+const DEFAULT_LINK_TEXT = "Let's have one.";
+const DEFAULT_EMAIL = "priyanshuroy.official19@gmail.com";
+
 export default function CtaCollage() {
+  const content = useSiteContent();
+  const cta = content?.cta;
+  const collage = cta?.collage ?? [];
+  const handLeftSrc = cta?.handLeft ?? "/images/hand left.png";
+  const handRightSrc = cta?.handRight ?? "/images/hand right.png";
+  const headline = cta?.headline ?? DEFAULT_HEADLINE;
+  const revealHeadline = cta?.revealHeadline ?? DEFAULT_REVEAL_HEADLINE;
+  const linkText = cta?.linkText ?? DEFAULT_LINK_TEXT;
+  const email = content?.settings?.email ?? DEFAULT_EMAIL;
+
   const containerRef = useRef<HTMLElement>(null);
   const imagesDesktopRef = useRef<(HTMLDivElement | null)[]>([]);
   const imagesMobileRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -78,6 +94,9 @@ export default function CtaCollage() {
           pin: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,
+          // Pinned triggers change document height via their .pin-spacer, so
+          // they must refresh before anything below them measures the page.
+          refreshPriority: 1,
         },
       });
 
@@ -257,7 +276,7 @@ export default function CtaCollage() {
             }}
           >
             <Image
-              src={img.src}
+              src={collage[i] ?? img.src}
               alt=""
               fill
               sizes="130px"
@@ -280,7 +299,7 @@ export default function CtaCollage() {
             }}
             className="relative aspect-[4/3] rounded-md overflow-hidden shadow-lg"
           >
-            <Image src={img.src} alt="" fill sizes="33vw" className="object-cover" />
+            <Image src={collage[i] ?? img.src} alt="" fill sizes="33vw" className="object-cover" />
           </div>
         ))}
       </div>
@@ -294,7 +313,7 @@ export default function CtaCollage() {
           className="text-center text-white font-light leading-tight"
           style={{ fontSize: "clamp(28px, 4.6vw, 43px)" }}
         >
-          no more forgettable work
+          {headline}
         </h2>
       </div>
 
@@ -307,12 +326,12 @@ export default function CtaCollage() {
           className="text-center text-white font-light leading-tight max-w-[800px]"
           style={{ fontSize: "clamp(26px, 4.6vw, 43px)" }}
         >
-          <Reveal>Good work starts with a conversation.</Reveal>{" "}
+          <Reveal>{revealHeadline}</Reveal>{" "}
           <a
-            href="mailto:priyanshuroy.official19@gmail.com"
+            href={`mailto:${email}`}
             className="relative inline-block italic hover:opacity-70 transition-opacity group"
           >
-            <Reveal>Let&apos;s have one.</Reveal>
+            <Reveal>{linkText}</Reveal>
             <span className="cta-underline absolute bottom-[-4px] left-0 w-full h-[2px] bg-white origin-left scale-x-0 will-change-transform" />
           </a>
         </h2>
@@ -323,7 +342,7 @@ export default function CtaCollage() {
         ref={nextSectionRef}
         className="absolute inset-0 z-0 opacity-0 pointer-events-none flex flex-col justify-end"
       >
-        <CtaConversation />
+        <CtaConversation src={cta?.twoHands} />
       </div>
 
       {/* Left Hand — slides in from the left */}
@@ -332,7 +351,7 @@ export default function CtaCollage() {
         className={HAND_LAYOUT.left.className}
       >
         <Image
-          src="/images/hand left.png"
+          src={handLeftSrc}
           alt=""
           fill
           sizes={HAND_LAYOUT.left.sizes}
@@ -346,7 +365,7 @@ export default function CtaCollage() {
         className={HAND_LAYOUT.right.className}
       >
         <Image
-          src="/images/hand right.png"
+          src={handRightSrc}
           alt=""
           fill
           sizes={HAND_LAYOUT.right.sizes}
