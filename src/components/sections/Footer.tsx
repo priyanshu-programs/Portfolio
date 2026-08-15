@@ -1,10 +1,12 @@
 "use client";
 
-import TransitionLink from "@/components/transition/TransitionLink";
+import Link from "@/components/transition/SmartLink";
+import { useSiteContent } from "@/components/ContentProvider";
+import ShaderSignatureText from "@/components/ui/ShaderSignatureText";
 
 const NAV_LINKS = [
   { label: "Work", href: "/work" },
-  { label: "About", href: "/#about" },
+  { label: "About", href: "/about" },
   { label: "Services", href: "/#services" },
   { label: "Contact", href: "/#contact" },
 ];
@@ -15,7 +17,18 @@ const SOCIALS = [
   { label: "Linkedin", href: "#" },
 ];
 
+const DEFAULT_TIMEZONE = "IST — UTC +5:30";
+const DEFAULT_EMAIL = "priyanshuroy.official19@gmail.com";
+const DEFAULT_NAME = "Priyanshu Roy";
+
 export default function Footer() {
+  const settings = useSiteContent()?.settings;
+  const navLinks = settings?.navLinks?.length ? settings.navLinks : NAV_LINKS;
+  const socials = settings?.socials?.length ? settings.socials : SOCIALS;
+  const timezone = settings?.timezone ?? DEFAULT_TIMEZONE;
+  const email = settings?.email ?? DEFAULT_EMAIL;
+  const name = settings?.name ?? DEFAULT_NAME;
+
   return (
     <footer className="relative w-full bg-cream overflow-hidden min-h-[520px] lg:h-screen flex flex-col">
       {/* Dark card — sits at top, fixed padding matches hero nav spacing */}
@@ -25,18 +38,18 @@ export default function Footer() {
           <div className="flex gap-x-20 sm:gap-x-32 text-[22px]">
             {/* Column 1: nav */}
             <ul className="space-y-1">
-              {NAV_LINKS.map((l) => (
+              {navLinks.map((l) => (
                 <li key={l.label}>
-                  <TransitionLink href={l.href} className="hover:opacity-70 transition-opacity">
+                  <Link href={l.href} className="hover:opacity-70 transition-opacity">
                     {l.label}
-                  </TransitionLink>
+                  </Link>
                 </li>
               ))}
             </ul>
 
             {/* Column 2: socials */}
             <ul className="space-y-1">
-              {SOCIALS.map((l) => (
+              {socials.map((l) => (
                 <li key={l.label}>
                   <a
                     href={l.href}
@@ -57,13 +70,13 @@ export default function Footer() {
               <p className="text-[18px] text-muted uppercase tracking-wider mb-3">
                 Timezone
               </p>
-              <p className="text-[22px]">IST — UTC +5:30</p>
+              <p className="text-[22px]">{timezone}</p>
             </div>
             <a
-              href="mailto:priyanshuroy.official19@gmail.com"
+              href={`mailto:${email}`}
               className="text-[22px] hover:opacity-70 transition-opacity"
             >
-              priyanshuroy.official19@gmail.com
+              {email}
             </a>
           </div>
         </div>
@@ -71,13 +84,12 @@ export default function Footer() {
 
       {/* Script name — grows to fill remaining height */}
       <div className="relative flex-1 no-overflow">
-        <div
+        <ShaderSignatureText
+          text={name}
           aria-hidden
-          className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 whitespace-nowrap font-script text-white mix-blend-difference leading-none select-none"
+          className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 whitespace-nowrap font-script leading-none select-none"
           style={{ fontSize: "clamp(112px, 24vw, 252px)" }}
-        >
-          Priyanshu Roy
-        </div>
+        />
       </div>
     </footer>
   );

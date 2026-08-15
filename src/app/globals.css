@@ -10,6 +10,15 @@
   font-display: block;
 }
 
+@font-face {
+  font-family: "Helvetica Neue 65 Medium";
+  src: url("/fonts/HelveticaNeue-Medium.otf") format("opentype"),
+       url("/fonts/HelveticaNeueMedium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --color-cream: #fffcfa;
   --color-ink: #1d222e;
@@ -21,7 +30,18 @@
 
   --font-sans: var(--font-hanken), "Helvetica Neue", Arial, sans-serif;
   --font-script: "Citadel Script Std";
-  --font-oswald: var(--font-oswald);
+}
+
+/* The Helvetica stack shared by the about and services blocks. A system stack,
+   so it resolves to real Helvetica Neue on macOS and to Arial elsewhere; the
+   weight steps those blocks use (300/400) render distinctly in both.
+   Self-hosting the real faces later is a change to this one line.
+
+   Declared on :root rather than in @theme deliberately — @theme tokens are
+   tree-shaken unless a matching utility class is used, and this is referenced
+   only as var(--font-helv) from inline styles, so there it would be dropped. */
+:root {
+  --font-helv: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 /* ── Marquee ─────────────────────────────────────────── */
@@ -139,15 +159,23 @@ body {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Kill the Tailwind v4 default border-color on all elements.
    Without this, any element that accidentally gets a border-width
-   (e.g. GSAP pin-spacers, pseudo-elements) will render a visible line. */
-*,
-*::before,
-*::after {
-  border-color: transparent;
+   (e.g. GSAP pin-spacers, pseudo-elements) will render a visible line.
+   This must live in @layer base: unlayered CSS beats every Tailwind
+   layer (including `utilities`) regardless of specificity, which was
+   silently stripping explicit border-color utilities like
+   `border-[#dcdcdc]` everywhere in the app. */
+@layer base {
+
+  *,
+  *::before,
+  *::after {
+    border-color: transparent;
+  }
 }
 
 /* GSAP ScrollTrigger pin-spacers can create 1px sub-pixel gaps
@@ -160,8 +188,10 @@ body {
 
 html,
 html * {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE / Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE / Edge */
 }
 
 html::-webkit-scrollbar,
@@ -217,14 +247,19 @@ body.is-transitioning {
   font-size: clamp(0.9375rem, 0.4vw + 0.8rem, 1.125rem);
 }
 
+@utility text-about-blurb {
+  /* 17.4px → 18.6px fluid (18px base) — apprenticeship/availability blurbs beside About photos */
+  font-size: clamp(1.0875rem, 0.09vw + 1.065rem, 1.1625rem);
+}
+
 @utility text-caption {
   /* 11px → 13px — labels, tags, small UI */
   font-size: clamp(0.6875rem, 0.2vw + 0.62rem, 0.8125rem);
 }
 
 @utility text-about-quote {
-  /* 21.8px → 40.6px fluid — about section quote (+30%) */
-  font-size: clamp(1.365rem, 2.184vw + 0.78rem, 2.535rem);
+  /* 19.9px → 36.9px fluid — about section quote (+30%) */
+  font-size: clamp(1.242rem, 1.988vw + 0.71rem, 2.306rem);
 }
 
 /* ── Magnetic Hover ──────────────────────────────────── */
@@ -304,8 +339,112 @@ body.is-transitioning {
   }
 }
 
-/* ── Page Transition Stage ──────────────────────────────── */
-.page-transition-stage {
+/* ── Page Transition (browser View Transitions API, via next-view-transitions) ──
+   Navigations run through `document.startViewTransition`, so the snapshot is the
+   viewport-sized `root`. The outgoing view holds static underneath while the
+   incoming view is revealed from a rounded, center-clipped, slightly-zoomed
+   state that expands to full size. Because `root` is always the viewport, the
+   reveal is identical regardless of page height (home vs work). */
+::view-transition-group(root) {
+  mix-blend-mode: normal;
+}
+
+/* Outgoing view: hold in place beneath the reveal (no default fade). */
+::view-transition-old(root) {
+  animation: none;
+  z-index: 1;
+}
+
+/* Incoming view: reveal on top with the rounded center-clip + zoom. */
+::view-transition-new(root) {
+  z-index: 2;
+  animation: pr-page-reveal 0.9s cubic-bezier(0.87, 0, 0.13, 1) both;
+}
+
+@keyframes pr-page-reveal {
+  from {
+    clip-path: inset(34% 40% 34% 40% round 2vw);
+    transform: scale(1.12);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0 round 0);
+    transform: scale(1);
+  }
+}
+
+.animate-menu-image-reveal {
+  animation: pr-page-reveal 0.9s cubic-bezier(0.87, 0, 0.13, 1) both;
+  z-index: 2;
+}
+
+/* ── Case-study advance (scrolling from one project into the next) ──
+   NextProject puts `cs-flatten` on <html> just before pushing, once the reader
+   has scrolled through the foot-of-page sneak peek. The site's usual clip-path
+   zoom is wrong here: scroll position already carries the reader to the
+   destination's top, so a center-clip reveal would be a second, unrelated
+   motion on top of a gesture that already reads as arrival.
+
+   But a hard cut is wrong too, which is what this used to be. By design the
+   outgoing stage *mirrors* a case study's own top — same gutter, same heading
+   scale, same Service block, already blended to the destination's palette — so
+   the two frames are nearly identical. Swapping them instantly doesn't read as
+   continuous; it reads as a snap on exactly the parts that don't line up (the
+   cover jumping to full size, text reflowing a hair) with nothing to mask it.
+
+   A crossfade is the one transition that resolves almost-matching frames into
+   each other. Short and linear: long enough to absorb the mismatch, short
+   enough that it never becomes a "transition" the reader has to wait through.
+
+   Both halves need an explicit animation. The base rule above sets
+   `animation: none` on the old view (the zoom reveal wants it held static), so
+   without re-animating it here the outgoing frame would sit fully opaque under
+   the incoming one and there would be nothing to fade.
+
+   Keyed to `cs-flatten`, NOT the `cs-cover` scroll lock: the two used to share
+   one class, and because the route change releases the lock *while this
+   animation is still playing* — and these pseudo-element rules match against
+   the live classList throughout, not just at snapshot time — the override was
+   being dropped a frame in and the zoom played in full. See caseStudyAdvance.ts. */
+html.cs-flatten::view-transition-old(root) {
+  z-index: 2;
+  animation: pr-cs-fade-out 320ms linear both;
+}
+
+html.cs-flatten::view-transition-new(root) {
+  z-index: 1;
+  animation: none;
+}
+
+/* Cross-fading *down* from the old view rather than up from the new one: the
+   two frames are near-identical, so fading the new one in from 0 would dip the
+   composite through a visibly darker/lighter middle where neither is solid.
+   Holding the new view opaque underneath and dissolving the old one over it
+   keeps the composite at full strength the whole way. */
+@keyframes pr-cs-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* ── Landing Intro (first-visit-only home intro) ─────────────
+   Standalone overlay driven by LandingIntro.tsx: a 0→100 counter on a
+   white sheet that slides away and wipes to reveal the page. */
+.landing-intro-stage {
   position: fixed;
   inset: 0;
   z-index: 11000;
@@ -317,70 +456,18 @@ body.is-transitioning {
   overflow: hidden;
 }
 
-.page-transition-snapshot {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  overflow: hidden;
-  pointer-events: none;
-  background: #ffffff;
-}
-
-.page-transition-snapshot-page {
-  max-width: none;
-}
-
-.page-transition-curtain {
-  position: absolute;
-  inset: 0;
-  background: transparent;
-  will-change: transform;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
-}
-
-.page-transition-curtain-top {
-  transform-origin: top left;
-  transform: translate3d(0, 0, 0) scaleY(0);
-}
-
-.page-transition-curtain-bottom {
-  transform-origin: top left;
-  transform: translate3d(0, 100%, 0) scaleY(0);
-}
-
-.page-transition-counter {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  overflow: hidden;
-  opacity: 0;
-}
-
-.page-transition-counter p {
-  margin: 0;
-  font-family: var(--font-oswald), "Helvetica Neue", sans-serif;
-  font-size: clamp(4rem, 13vw, 12rem);
-  font-weight: 500;
-  line-height: 0.85;
-  letter-spacing: 0;
-  color: #181818;
-}
-
-.page-transition-sheet {
+.landing-intro-sheet {
   position: absolute;
   inset: 0;
   z-index: 2;
   background: #ffffff;
   will-change: transform;
   transform-origin: top left;
-  transform: translate3d(0, 0, 0) scaleX(0) scaleY(0);
+  transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
 }
 
-.page-transition-band {
+.landing-intro-band {
   position: absolute;
   inset: 0;
   z-index: 4;
@@ -391,6 +478,26 @@ body.is-transitioning {
   backface-visibility: hidden;
 }
 
+.landing-intro-counter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.landing-intro-counter p {
+  margin: 0;
+  font-family: var(--font-helv);
+  font-size: clamp(4rem, 13vw, 12rem);
+  font-weight: 300;
+  line-height: 0.85;
+  letter-spacing: 0;
+  color: #181818;
+}
+
 /* ── Page Wrapper (animated container) ───────────────────── */
 .page-wrapper {
   width: 100%;
@@ -398,4 +505,6 @@ body.is-transitioning {
   min-height: 100%;
   position: relative;
   overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 }

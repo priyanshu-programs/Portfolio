@@ -1,15 +1,17 @@
 "use client";
 
-import TransitionLink from "@/components/transition/TransitionLink";
 import {
+  LANDING_INTRO_DONE_EVENT,
   LANDING_INTRO_STORAGE_KEY,
-  PAGE_REVEAL_EVENT,
-  useTransition,
-} from "@/components/transition/TransitionContext";
+} from "@/components/transition/LandingIntro";
 import LiquidImage from "@/components/ui/LiquidImage";
-import { useLayoutEffect, useRef } from "react";
+import TopNav from "@/components/ui/TopNav";
+import { useSiteContent } from "@/components/ContentProvider";
+import { resolveNavAppearance } from "@/lib/nav";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import KineticLoader from "@/components/ui/KineticLoader";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -39,40 +41,7 @@ const NoiseOverlay = () => (
 );
 
 /* ─── Kinetic Loader ───────────────────────────────────── */
-const KineticLoader = () => (
-  <div className="relative inline-flex items-center justify-center size-[76px] rounded-full bg-white shrink-0 text-ink font-oswald">
-    {/* The solid background that expands on hover */}
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_center,_#60a5fa_0%,_var(--color-border-deep)_50%,_#818cf8_100%)] animate-flow-gradient rounded-full scale-0 transition-transform duration-[600ms] ease-[cubic-bezier(0.85,0,0.15,1)] z-10 group-hover:scale-100" />
-
-    {/* The SVG Text Layer */}
-    <div className="absolute inset-0 flex items-center justify-center z-20 transition-colors duration-400 group-hover:text-[#f4f4f4]">
-      <svg viewBox="0 0 100 100" width="100%" height="100%" className="overflow-visible animate-[spin_10s_linear_infinite] group-hover:animate-[spin_3s_linear_infinite]">
-        <defs>
-          <path id="circlePath" d="M 50, 50 m -36, 0 a 36,36 0 1,1 72,0 a 36,36 0 1,1 -72,0" />
-        </defs>
-        <text fontSize="10.5" fontWeight="600" fill="currentColor" letterSpacing="1.2">
-          <textPath href="#circlePath" startOffset="0%" textLength="226" lengthAdjust="spacing">
-            LET&apos;S TALK • LET&apos;S TALK • LET&apos;S TALK •
-          </textPath>
-        </text>
-      </svg>
-    </div>
-
-    {/* The Center Icon */}
-    <div className="relative z-30 flex items-center justify-center transition-all duration-[600ms] ease-[cubic-bezier(0.85,0,0.15,1)] group-hover:rotate-45 group-hover:scale-125 group-hover:text-[#f4f4f4]">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="24" height="24">
-        <path d="M6 18L18 6M18 6H8M18 6V16" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
-    </div>
-  </div>
-);
-
-/* ─── Navigation ──────────────────────────────────────── */
-const NAV = [
-  { label: "Work", href: "/work" },
-  { label: "About", href: "/#about" },
-  { label: "Contact", href: "/#contact" },
-];
+// Extracted to src/components/ui/KineticLoader.tsx
 
 /* ─── Word-reveal helper ──────────────────────────────── */
 const Reveal = ({ children }: { children: string }) => (
@@ -90,15 +59,33 @@ const Reveal = ({ children }: { children: string }) => (
   </>
 );
 
+const DEFAULT_NAME = "Priyanshu Roy";
+const DEFAULT_HEADING = "Brand Designer\n& Web Developer";
+const DEFAULT_PARAGRAPH = "Most sites look like\ntemplates. Mine don't.";
+const DEFAULT_PILL = "Open to\nprojects";
+
 export default function Hero() {
-  const { isAnimating, isLandingIntroActive } = useTransition();
-  const isTransitionEntryRef = useRef(false);
-  const shouldRevealOnMountRef = useRef(true);
+  const content = useSiteContent();
+  const settings = content?.settings;
+  const hero = content?.hero;
+
+  const name = settings?.name ?? DEFAULT_NAME;
+  // Blend stays the default here: the portrait scrolls under the nav, and a
+  // flat ink would be swallowed by it at some point in the scroll.
+  const { blend: navBlend, color: navColor } = resolveNavAppearance(settings);
+  const marqueeText = hero?.marqueeText ?? name;
+  const loaderText = hero?.loaderText; // Using default from KineticLoader if undefined
+  const portraitSrc = hero?.portrait ?? "/images/hero-portrait.png";
+  const headingLines = (hero?.heading ?? DEFAULT_HEADING).split("\n");
+  const paragraphLines = (hero?.paragraph ?? DEFAULT_PARAGRAPH).split("\n");
+  const pillLines = (hero?.pillLabel ?? DEFAULT_PILL).split("\n");
+
   const sectionRef = useRef<HTMLElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const portraitRef = useRef<HTMLDivElement>(null);
   const marqueeWrapRef = useRef<HTMLDivElement>(null);
+  const marqueeRevealRef = useRef<HTMLDivElement>(null);
   const marqueeInnerRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const introWrapRef = useRef<HTMLDivElement>(null);
@@ -107,12 +94,8 @@ export default function Hero() {
   const hasAnimatedRef = useRef(false);
 
   useLayoutEffect(() => {
-    isTransitionEntryRef.current = isAnimating;
-    shouldRevealOnMountRef.current = !isAnimating && !isLandingIntroActive;
-  }, [isAnimating, isLandingIntroActive]);
-
-  useLayoutEffect(() => {
-    let handleReveal: ((event: Event) => void) | null = null;
+    let mounted = true;
+    let handleReveal: (() => void) | null = null;
 
     // Next can restore cached routes on browser back/forward while preserving refs.
     // Reset the reveal guard whenever the effect re-activates so the intro can play again.
@@ -127,39 +110,46 @@ export default function Hero() {
         ".reveal-inner"
       );
 
-      /* ── Initial hidden states ────────────────────── */
-      gsap.set(frameRef.current, { clearProps: "clipPath" });
-      gsap.set(navRef.current, { y: -18, opacity: 0 });
-      gsap.set(portraitRef.current, { y: 36, scale: 1.04, opacity: 0.2 });
-      gsap.set(marqueeWrapRef.current, { y: 24, opacity: 0 });
-      gsap.set(pillRef.current, { x: -42, opacity: 0 });
-      gsap.set(introWrapRef.current, { y: 20, opacity: 0 });
-      gsap.set(glowRef.current, { scale: 0.9, opacity: 0 });
+      // The hero's animated entrance is only meaningful once: on the very first
+      // visit, right after the landing-intro overlay lifts. On any other mount
+      // (a normal navigation or reload) the hero must stay VISIBLE so the native
+      // view-transition captures full content in the incoming-page snapshot and
+      // the clip-reveal actually shows it — matching the work page. If we hid it
+      // here (in a pre-paint layout effect), work→home would reveal an empty page.
+      let shouldWaitForLandingIntro = false;
+      try {
+        shouldWaitForLandingIntro =
+          window.location.pathname === "/" &&
+          window.sessionStorage.getItem(LANDING_INTRO_STORAGE_KEY) !== "true";
+      } catch {}
+      const playIntroEntrance = shouldWaitForLandingIntro && !reduceMotion;
 
-      if (reduceMotion) {
-        gsap.set(words ?? [], {
-          yPercent: 0,
-          opacity: 1,
-        });
-      } else {
-        gsap.set(words ?? [], {
-          yPercent: 110,
-          opacity: 0,
-        });
+      // Harmless reset regardless of path.
+      gsap.set(frameRef.current, { clearProps: "clipPath" });
+
+      if (playIntroEntrance) {
+        /* ── Initial hidden states (first visit only) ── */
+        gsap.set(navRef.current, { y: -18, opacity: 0 });
+        gsap.set(portraitRef.current, { y: 36, scale: 1.04, opacity: 0.2 });
+        gsap.set(marqueeRevealRef.current, { y: 24, opacity: 0 });
+        gsap.set(pillRef.current, { x: -42, opacity: 0 });
+        gsap.set(introWrapRef.current, { y: 20, opacity: 0 });
+        gsap.set(glowRef.current, { scale: 0.9, opacity: 0 });
+        gsap.set(words ?? [], { yPercent: 110, opacity: 0 });
       }
 
-      const revealHero = () => {
+      const revealHero = (instant = reduceMotion) => {
         if (hasAnimatedRef.current) {
           return;
         }
 
         hasAnimatedRef.current = true;
 
-        if (reduceMotion) {
+        if (instant) {
           gsap.set(frameRef.current, { clipPath: "inset(0% 0% 0% 0%)" });
           gsap.set(navRef.current, { y: 0, opacity: 1 });
           gsap.set(portraitRef.current, { y: 0, scale: 1, opacity: 1 });
-          gsap.set(marqueeWrapRef.current, { y: 0, opacity: 1 });
+          gsap.set(marqueeRevealRef.current, { y: 0, opacity: 1 });
           gsap.set(pillRef.current, { x: 0, opacity: 1 });
           gsap.set(introWrapRef.current, { y: 0, opacity: 1 });
           gsap.set(glowRef.current, { scale: 1, opacity: 0.3 });
@@ -168,7 +158,7 @@ export default function Hero() {
 
         const tl = gsap.timeline({
           defaults: { ease: "power3.out" },
-          delay: isTransitionEntryRef.current ? 0.08 : 0.18,
+          delay: 0.18,
         });
 
         tl.to(
@@ -208,7 +198,7 @@ export default function Hero() {
             0.2
           )
           .to(
-            marqueeWrapRef.current,
+            marqueeRevealRef.current,
             { y: 0, opacity: 1, duration: 0.95 },
             0.34
           );
@@ -228,26 +218,16 @@ export default function Hero() {
         }
       };
 
-      handleReveal = (event: Event) => {
-        const customEvent = event as CustomEvent<{ path?: string }>;
-
-        if (customEvent.detail?.path === "/") {
+      if (playIntroEntrance) {
+        // First visit: wait for the landing intro to finish, then animate in.
+        handleReveal = () => {
           revealHero();
-        }
-      };
-
-      window.addEventListener(PAGE_REVEAL_EVENT, handleReveal);
-
-      let shouldWaitForLandingIntro = false;
-
-      try {
-        shouldWaitForLandingIntro =
-          window.location.pathname === "/" &&
-          window.sessionStorage.getItem(LANDING_INTRO_STORAGE_KEY) !== "true";
-      } catch {}
-
-      if (shouldRevealOnMountRef.current && !shouldWaitForLandingIntro) {
-        revealHero();
+        };
+        window.addEventListener(LANDING_INTRO_DONE_EVENT, handleReveal);
+      } else {
+        // Normal nav / reload / reduced motion: content is already visible, so
+        // the view-transition reveal is the entrance. Snap to the final state.
+        revealHero(true);
       }
 
       /* ── Scroll-linked marquee skew ───────────────── */
@@ -274,6 +254,7 @@ export default function Hero() {
           start: "top top",
           end: "bottom top",
           scrub: 1,
+          invalidateOnRefresh: true,
         },
       });
 
@@ -283,11 +264,19 @@ export default function Hero() {
         .to(introWrapRef.current, { y: -40, ease: "none" }, 0) // Intro text scrolls slightly faster
         .to(pillRef.current, { y: -60, ease: "none" }, 0); // Pill scrolls faster
 
+      /* ── Re-sync trigger geometry once webfonts settle ─── */
+      if (typeof document !== "undefined" && document.fonts?.ready) {
+        document.fonts.ready.then(() => {
+          if (mounted) ScrollTrigger.refresh();
+        });
+      }
+
     }, sectionRef);
 
     return () => {
+      mounted = false;
       if (handleReveal) {
-        window.removeEventListener(PAGE_REVEAL_EVENT, handleReveal);
+        window.removeEventListener(LANDING_INTRO_DONE_EVENT, handleReveal);
       }
       ctx.revert();
     };
@@ -314,39 +303,13 @@ export default function Hero() {
           />
 
           {/* ── Top Navbar ───────────────────────────── */}
-          <nav
+          <TopNav
             ref={navRef}
-            className="relative z-30 flex items-center justify-between px-6 md:px-[40px] pt-8 md:pt-[44px] text-[16px]"
-            style={{
-              fontWeight: 300,
-              letterSpacing: "-0.01em"
-            }}
-          >
-            <span style={{
-              fontWeight: 300,
-              letterSpacing: "-0.01em"
-            }}>© Priyanshu Roy</span>
-            <ul className="flex items-center gap-8 md:gap-[76px]" style={{
-              fontWeight: 300,
-              letterSpacing: "-0.01em"
-            }}>
-              {NAV.map((item) => (
-                <li key={item.label}>
-                  <TransitionLink
-                    href={item.href}
-                    className="magnetic-hover relative group inline-block py-1"
-                    style={{
-                      fontWeight: 300,
-                      letterSpacing: "-0.01em"
-                    }}
-                  >
-                    {item.label}
-                    <span className="absolute left-0 bottom-0 w-full h-[1px] bg-current origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100" />
-                  </TransitionLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
+            name={name}
+            variant="hero"
+            blend={navBlend}
+            color={navColor}
+          />
 
           {/* ── Portrait ─────────────────────────────── */}
           <div
@@ -354,8 +317,8 @@ export default function Hero() {
             className="transition-hero-image absolute left-1/2 -translate-x-1/2 bottom-0 w-[95vw] sm:w-[80vw] lg:w-full lg:max-w-[750px] h-full z-10 pointer-events-none"
           >
             <LiquidImage
-              src="/images/hero-portrait.png"
-              alt="Priyanshu Roy"
+              src={portraitSrc}
+              alt={name}
               className="w-full h-full pointer-events-auto"
             />
           </div>
@@ -366,26 +329,28 @@ export default function Hero() {
             aria-hidden
             className="pointer-events-none absolute left-0 w-full top-[58%] sm:top-[62%] lg:top-[79%] lg:-translate-y-1/2 z-20 mix-blend-difference"
           >
-            <div
-              ref={marqueeInnerRef}
-              className="flex items-center w-fit whitespace-nowrap font-script text-white leading-[1.2] select-none animate-marquee py-2 lg:py-4 will-change-transform"
-              style={{ fontSize: "clamp(72px, 17vw, 240px)" }}
-            >
-              <div className="flex items-center shrink-0">
-                <span>Priyanshu Roy</span>
-                <DashSeparator />
-                <span>Priyanshu Roy</span>
-                <DashSeparator />
-                <span>Priyanshu Roy</span>
-                <DashSeparator />
-              </div>
-              <div className="flex items-center shrink-0">
-                <span>Priyanshu Roy</span>
-                <DashSeparator />
-                <span>Priyanshu Roy</span>
-                <DashSeparator />
-                <span>Priyanshu Roy</span>
-                <DashSeparator />
+            <div ref={marqueeRevealRef} className="w-full will-change-transform">
+              <div
+                ref={marqueeInnerRef}
+                className="flex items-center w-fit whitespace-nowrap font-script text-white leading-[1.2] select-none animate-marquee py-2 lg:py-4 will-change-transform"
+                style={{ fontSize: "clamp(72px, 17vw, 240px)" }}
+              >
+                <div className="flex items-center shrink-0">
+                  <span>{marqueeText}</span>
+                  <DashSeparator />
+                  <span>{marqueeText}</span>
+                  <DashSeparator />
+                  <span>{marqueeText}</span>
+                  <DashSeparator />
+                </div>
+                <div className="flex items-center shrink-0">
+                  <span>{marqueeText}</span>
+                  <DashSeparator />
+                  <span>{marqueeText}</span>
+                  <DashSeparator />
+                  <span>{marqueeText}</span>
+                  <DashSeparator />
+                </div>
               </div>
             </div>
           </div>
@@ -393,15 +358,18 @@ export default function Hero() {
           {/* ── "Open to projects" Pill ──────────────── */}
           <div
             ref={pillRef}
-            className="relative z-30 mt-[150px] sm:mt-[180px] lg:mt-0 lg:absolute lg:left-0 lg:top-[38%]"
+            className="relative z-30 mt-[150px] sm:mt-[180px] lg:mt-0 lg:absolute lg:left-0 lg:top-[38%] group cursor-pointer w-fit"
           >
-            <div className="group flex items-center gap-[48px] bg-ink text-white rounded-r-full rounded-l-none w-fit -ml-8 pl-[80px] pr-[16px] h-[100px] cursor-pointer transition-transform duration-[420ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:translate-x-4">
+            <div className="flex items-center gap-[48px] bg-ink text-white rounded-r-full rounded-l-none w-fit -ml-8 pl-[80px] pr-[16px] h-[100px] transition-transform duration-[420ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] group-hover:translate-x-4">
               <span className="text-[18px] sm:text-[20px] leading-[1.15] font-light">
-                Open to
-                <br />
-                projects
+                {pillLines.map((line, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <br />}
+                    {line}
+                  </Fragment>
+                ))}
               </span>
-              <KineticLoader />
+              <KineticLoader text={loaderText} />
             </div>
           </div>
 
@@ -418,14 +386,20 @@ export default function Hero() {
                   letterSpacing: "-0.01em"
                 }}
               >
-                <Reveal>Brand Designer</Reveal>
-                <br />
-                <Reveal>&amp; Web Developer</Reveal>
+                {headingLines.map((line, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <br />}
+                    <Reveal>{line}</Reveal>
+                  </Fragment>
+                ))}
               </h1>
               <p className="mt-3 text-hero-desc leading-[1.4] text-ink/80" style={{ fontWeight: 300 }}>
-                <Reveal>Most sites look like</Reveal>
-                <br />
-                <Reveal>templates. Mine don&apos;t.</Reveal>
+                {paragraphLines.map((line, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <br />}
+                    <Reveal>{line}</Reveal>
+                  </Fragment>
+                ))}
               </p>
             </div>
           </div>

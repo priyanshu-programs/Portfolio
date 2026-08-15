@@ -4,15 +4,17 @@ import React, { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useSiteContent } from "@/components/ContentProvider";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const LANDSCAPE_IMAGE = 'url("/images/services.png")';
+const DEFAULT_LANDSCAPE = "/images/services.png";
+const DEFAULT_ORNAMENT = "/images/ornament-1.jpg";
 
 const SERVICE_CARDS = [
   {
     title: "Brand\nDesign",
-    copy: "From name to system. Built to last. A brand isn't just a logo. It's every impression a client forms before you've said a word. I build the full system — mark, color, type, voice — so it holds up on a business card and a billboard.",
+    copy: "Identity that earns recognition before a single word is spoken.",
     bg: "#FFFCFA",
     text: "#13284b",
     muted: "rgba(19,40,75,0.72)",
@@ -21,7 +23,7 @@ const SERVICE_CARDS = [
   },
   {
     title: "Web\nDevelopment",
-    copy: "Designed and built. One person. Most sites lose something in translation between designer and developer. I do both, so what you approve in the mockup is what goes live. No handoffs, no surprises.",
+    copy: "Fast, scalable websites engineered to perform and convert.",
     bg: "#13284b",
     text: "#FFFCFA",
     muted: "rgba(255,252,250,0.72)",
@@ -30,7 +32,7 @@ const SERVICE_CARDS = [
   },
   {
     title: "UI / UX\nDesign",
-    copy: "Flows that work the first time. People don't read instructions. They tap, scroll, and leave. I design around how people actually move — so the product gets out of its own way and the user gets where they're going.",
+    copy: "Experiences that feel effortless from the very first click.",
     bg: "#1D222E",
     text: "#FFFCFA",
     muted: "rgba(255,252,250,0.62)",
@@ -99,6 +101,20 @@ const ServiceIcon = ({ type }: ServiceIconProps) => {
 };
 
 export default function Services() {
+  const services = useSiteContent()?.services;
+
+  // Merge CMS copy into the fixed 3-card deck by index; styling/positions and
+  // the exact card count (the flip animation asserts 3) stay in code.
+  const cards = SERVICE_CARDS.map((card, i) => ({
+    ...card,
+    title: services?.cards?.[i]?.title ?? card.title,
+    copy: services?.cards?.[i]?.copy ?? card.copy,
+    icon: services?.cards?.[i]?.iconKey ?? card.icon,
+  }));
+  const ornamentSrc = services?.ornament ?? DEFAULT_ORNAMENT;
+  const landscapeImage = `url("${services?.landscape ?? DEFAULT_LANDSCAPE}")`;
+  const headingOverride = services?.heading;
+
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -192,6 +208,9 @@ export default function Services() {
             scrub: 0.85,
             anticipatePin: 1,
             invalidateOnRefresh: true,
+            // Pinned triggers change document height via their .pin-spacer, so
+            // they must refresh before anything below them measures the page.
+            refreshPriority: 1,
           },
           defaults: { ease: "none" },
         });
@@ -316,29 +335,33 @@ export default function Services() {
       <div className="py-16 lg:hidden">
         <h2
           className="mx-auto max-w-[800px] text-left font-light leading-[1.3] text-[#1D222E] drop-shadow-none text-[31px] sm:text-[42px] whitespace-pre-wrap"
-          style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}
+          style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
         >
-          {`            Your website is the \nfirst impression `}
-          <span className="inline-block align-middle mx-2 w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
-            <Image src="/images/ornament-1.jpg" alt="ornament" fill className="object-cover" />
-          </span>
-          {` for every client \n`}
-          <span className="text-[#858EA3]">you will ever have.</span>
-          {` \n                     It should be worth having.`}
+          {headingOverride ?? (
+            <>
+              {`            Your website is the \nfirst impression `}
+              <span className="inline-block align-middle mx-2 w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
+                <Image src={ornamentSrc} alt="ornament" fill className="object-cover" />
+              </span>
+              {` for every client \n`}
+              <span className="text-[#858EA3]">you will ever have.</span>
+              {` \n                     It should be worth having.`}
+            </>
+          )}
         </h2>
 
         <div
           aria-hidden
           className="mx-auto mt-9 aspect-[15/7] max-w-[680px] overflow-hidden rounded-[8px]"
           style={{
-            backgroundImage: LANDSCAPE_IMAGE,
+            backgroundImage: landscapeImage,
             backgroundPosition: "center",
             backgroundSize: "cover",
           }}
         />
 
         <div className="mx-auto mt-8 grid max-w-[720px] grid-cols-1 gap-4 sm:grid-cols-3">
-          {SERVICE_CARDS.map((card) => (
+          {cards.map((card) => (
             <article
               key={card.title}
               className="flex min-h-[286px] flex-col justify-between rounded-[8px] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]"
@@ -348,12 +371,19 @@ export default function Services() {
                 <ServiceIcon type={card.icon} />
               </div>
               <div>
-                <h3 className="whitespace-pre-line text-[29px] font-light leading-[0.98]">
+                <h3
+                  className="whitespace-pre-line text-[29px] leading-[0.98]"
+                  style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
+                >
                   {card.title}
                 </h3>
                 <p
-                  className="mt-8 text-[13px] font-light leading-[1.35]"
-                  style={{ color: card.muted }}
+                  className="mt-3 text-[17px] leading-[1.45] opacity-90"
+                  style={{
+                    color: card.muted,
+                    fontFamily: "var(--font-helv)",
+                    fontWeight: 300,
+                  }}
                 >
                   {card.copy}
                 </p>
@@ -368,15 +398,19 @@ export default function Services() {
           <h2
             ref={headingRef}
             className="mb-[7vh] text-left text-[clamp(28px,2.55vw,48px)] font-light leading-[1.3] text-[#1D222E] drop-shadow-none whitespace-pre-wrap max-w-[1000px]"
-            style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}
+            style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
           >
-            {`            Your website is the \nfirst impression `}
-            <span className="inline-block align-middle mx-[0.3em] w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
-              <Image src="/images/ornament-1.jpg" alt="ornament" fill className="object-cover" />
-            </span>
-            {` for every client \n`}
-            <span className="text-[#858EA3]">you will ever have.</span>
-            {` \n                     It should be worth having.`}
+            {headingOverride ?? (
+              <>
+                {`            Your website is the \nfirst impression `}
+                <span className="inline-block align-middle mx-[0.3em] w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
+                  <Image src={ornamentSrc} alt="ornament" fill className="object-cover" />
+                </span>
+                {` for every client \n`}
+                <span className="text-[#858EA3]">you will ever have.</span>
+                {` \n                     It should be worth having.`}
+              </>
+            )}
           </h2>
 
           <div
@@ -384,7 +418,7 @@ export default function Services() {
             className="flex items-stretch justify-center [transform-style:preserve-3d] will-change-transform"
             style={{ gap: 0, width: "46vw" }}
           >
-            {SERVICE_CARDS.map((card, index) => (
+            {cards.map((card, index) => (
               <article
                 key={card.title}
                 ref={(el) => {
@@ -415,7 +449,7 @@ export default function Services() {
                     className="absolute inset-0 -right-px overflow-hidden will-change-transform"
                     style={{
                       backfaceVisibility: "hidden",
-                      backgroundImage: LANDSCAPE_IMAGE,
+                      backgroundImage: landscapeImage,
                       backgroundPosition: card.position,
                       backgroundRepeat: "no-repeat",
                       backgroundSize: "300% 100%",
@@ -444,12 +478,19 @@ export default function Services() {
                       <ServiceIcon type={card.icon} />
                     </div>
                     <div>
-                      <h3 className="whitespace-pre-line text-[clamp(26px,1.8vw,36px)] font-light leading-[0.98]">
+                      <h3
+                        className="whitespace-pre-line text-[clamp(26px,1.8vw,36px)] leading-[0.98]"
+                        style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
+                      >
                         {card.title}
                       </h3>
                       <p
-                        className="mt-[clamp(38px,4.4vw,82px)] max-w-[34ch] text-[clamp(10px,0.72vw,13px)] font-light leading-[1.35]"
-                        style={{ color: card.muted }}
+                        className="mt-[clamp(12px,1.2vw,20px)] max-w-[34ch] text-[clamp(15px,1.15vw,20px)] leading-[1.45] opacity-90"
+                        style={{
+                          color: card.muted,
+                          fontFamily: "var(--font-helv)",
+                          fontWeight: 300,
+                        }}
                       >
                         {card.copy}
                       </p>
