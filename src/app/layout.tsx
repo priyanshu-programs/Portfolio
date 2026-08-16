@@ -14,6 +14,19 @@ const hanken = Hanken_Grotesk({
   variable: "--font-hanken",
 });
 
+/**
+ * Sanity is the source of truth for every page, and this layout holds the one
+ * fetch that feeds all of them via ContentProvider. Without an explicit window
+ * here the whole tree is prerendered once at build time on the host, and only
+ * a working /api/revalidate webhook can ever unfreeze it — which is precisely
+ * how published edits went live locally but never on the deployment.
+ *
+ * This is the time-based floor, not the primary mechanism: the webhook still
+ * gives near-instant updates. It just guarantees staleness is bounded even if
+ * the webhook is misconfigured or removed.
+ */
+export const revalidate = 60;
+
 const DEFAULT_TITLE = "Priyanshu Roy — Brand Designer & Web Developer";
 const DEFAULT_DESCRIPTION =
   "Most sites look like templates. Mine don't. Identity and execution, together.";
