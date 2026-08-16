@@ -8,6 +8,19 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+/** Matches the root layout's window so a case study can't outlive its content. */
+export const revalidate = 60;
+
+/**
+ * generateStaticParams only knows the slugs that existed at build time, so a
+ * project added in the Studio afterwards would 404 until the next deploy —
+ * a CMS-shaped page failing in the one way a CMS is supposed to prevent.
+ * Leaving this true renders unknown slugs on demand; getCaseStudy still
+ * returns null for a genuinely missing project, so notFound() below keeps
+ * handling real 404s.
+ */
+export const dynamicParams = true;
+
 /** Prerender every case study that has a slug. */
 export async function generateStaticParams() {
   const slugs = await getWorkSlugs();
