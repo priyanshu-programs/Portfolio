@@ -1,8 +1,9 @@
 "use client";
 
 import {
+  HERO_PORTRAIT_ATTR,
   LANDING_INTRO_DONE_EVENT,
-  LANDING_INTRO_STORAGE_KEY,
+  shouldPlayLandingIntro,
 } from "@/components/transition/LandingIntro";
 import LiquidImage from "@/components/ui/LiquidImage";
 import TopNav from "@/components/ui/TopNav";
@@ -116,21 +117,22 @@ export default function Hero() {
       // view-transition captures full content in the incoming-page snapshot and
       // the clip-reveal actually shows it — matching the work page. If we hid it
       // here (in a pre-paint layout effect), work→home would reveal an empty page.
-      let shouldWaitForLandingIntro = false;
-      try {
-        shouldWaitForLandingIntro =
-          window.location.pathname === "/" &&
-          window.sessionStorage.getItem(LANDING_INTRO_STORAGE_KEY) !== "true";
-      } catch {}
-      const playIntroEntrance = shouldWaitForLandingIntro && !reduceMotion;
+      //
+      // This asks LandingIntro's own predicate rather than re-deriving the rule:
+      // the two must agree exactly, because pre-hiding here while the intro
+      // stands down would leave the hero waiting on an event that never fires.
+      const playIntroEntrance = shouldPlayLandingIntro();
 
       // Harmless reset regardless of path.
       gsap.set(frameRef.current, { clearProps: "clipPath" });
 
       if (playIntroEntrance) {
-        /* ── Initial hidden states (first visit only) ── */
+        /* ── Initial hidden states (first visit only) ──
+           The portrait is deliberately absent: LandingIntro fits its centre
+           panel onto this exact box and cross-fades into it, so the portrait
+           must already be at its final position and opacity when the intro
+           lands. Animating it here too would pop at the seam. */
         gsap.set(navRef.current, { y: -18, opacity: 0 });
-        gsap.set(portraitRef.current, { y: 36, scale: 1.04, opacity: 0.2 });
         gsap.set(marqueeRevealRef.current, { y: 24, opacity: 0 });
         gsap.set(pillRef.current, { x: -42, opacity: 0 });
         gsap.set(introWrapRef.current, { y: 20, opacity: 0 });
@@ -171,17 +173,8 @@ export default function Hero() {
             },
             0
           )
-          .to(
-            portraitRef.current,
-            {
-              y: 0,
-              scale: 1,
-              opacity: 1,
-              duration: 1.18,
-              ease: "power2.out",
-            },
-            0.04
-          )
+          // No portrait tween: LandingIntro's fitted panel is what arrives in
+          // that slot, and it hands over an already-visible portrait.
           .to(
             navRef.current,
             { y: 0, opacity: 1, duration: 0.72 },
@@ -314,6 +307,7 @@ export default function Hero() {
           {/* ── Portrait ─────────────────────────────── */}
           <div
             ref={portraitRef}
+            {...{ [HERO_PORTRAIT_ATTR]: "" }}
             className="transition-hero-image absolute left-1/2 -translate-x-1/2 bottom-0 w-[95vw] sm:w-[80vw] lg:w-full lg:max-w-[750px] h-full z-10 pointer-events-none"
           >
             <LiquidImage

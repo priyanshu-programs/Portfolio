@@ -73,8 +73,14 @@ const GridIcon = () => (
   </svg>
 );
 
+/**
+ * `t?.slug` rather than `t.slug`: the optional chain on `tags` only proves the
+ * array exists. A tag reference that doesn't resolve comes back as a null
+ * *element*, which getSiteContent now strips — but this component is also fed
+ * by callers that don't go through it.
+ */
 const hasTag = (project: WorkProject, slug: string) =>
-  project.tags?.some((t) => t.slug === slug) ?? false;
+  project.tags?.some((t) => t?.slug === slug) ?? false;
 
 /**
  * `project.id` is an editor-entered display number ("01"), not an identifier —
@@ -95,7 +101,7 @@ export default function WorkIndex({ projects, tags }: WorkIndexProps) {
     () => [
       { key: "all", label: "All" },
       ...tags
-        .filter((t): t is Tag & { slug: string } => Boolean(t.slug))
+        .filter((t): t is Tag & { slug: string } => Boolean(t?.slug))
         .map((t) => ({ key: t.slug, label: t.title ?? t.slug })),
     ],
     [tags]

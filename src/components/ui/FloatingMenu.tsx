@@ -15,7 +15,7 @@ const MENU_LINKS = [
   { label: "Home", href: "/" },
   { label: "Work", href: "/work", image: "/images/menu-work.webp" },
   { label: "About", href: "/about", image: "/images/menu-about.webp" },
-  { label: "Contact", href: "/#contact", image: "/images/menu-contact.webp" },
+  { label: "Contact", href: "/contact", image: "/images/menu-contact.webp" },
 ];
 
 const MENU_TAGS = ["Identity", "Visualisation", "Interactive"];
@@ -391,7 +391,7 @@ export default function FloatingMenu() {
       >
         <div className={`hidden md:block transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           <Link
-            href="/#contact"
+            href="/contact"
             onClick={() => closeMenu()}
             className="flex h-[56px] md:h-[60px] items-center justify-center rounded-full border border-white/20 px-8 text-[15px] text-white transition-all hover:scale-105"
           >

@@ -4,6 +4,7 @@ import { ViewTransitions } from "next-view-transitions";
 import SmoothScroll from "@/components/SmoothScroll";
 import FollowCursor from "@/components/ui/FollowCursor";
 import FloatingMenu from "@/components/ui/FloatingMenu";
+import RouteLoadingOverlay from "@/components/transition/RouteLoadingOverlay";
 import SiteFooter from "@/components/sections/SiteFooter";
 import { ContentProvider } from "@/components/ContentProvider";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
@@ -64,6 +65,7 @@ export default async function RootLayout({
             </SmoothScroll>
             <FollowCursor zIndex={10050} />
             <FloatingMenu />
+            <RouteLoadingOverlay />
           </ContentProvider>
         </body>
       </html>

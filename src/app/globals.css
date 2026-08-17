@@ -441,9 +441,10 @@ html.cs-flatten::view-transition-new(root) {
   }
 }
 
-/* ── Landing Intro (first-visit-only home intro) ─────────────
-   Standalone overlay driven by LandingIntro.tsx: a 0→100 counter on a
-   white sheet that slides away and wipes to reveal the page. */
+/* ── Landing Intro (home intro, plays on every load of /) ─────────────
+   Standalone overlay driven by LandingIntro.tsx: five tall panels rise, tighten
+   together, collapse to the centre one, and that panel is then fitted onto the
+   hero portrait's box (GSAP Flip) so the intro resolves into the page. */
 .landing-intro-stage {
   position: fixed;
   inset: 0;
@@ -451,38 +452,117 @@ html.cs-flatten::view-transition-new(root) {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  contain: layout paint style;
+  background: #1a1a1a;
   isolation: isolate;
   overflow: hidden;
 }
 
-.landing-intro-sheet {
+/* No `contain` here: the centre panel is fitted to the hero portrait's box with
+   position:absolute coordinates resolved against this stage, and paint
+   containment would clip it mid-flight. */
+
+.landing-intro-row {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: #ffffff;
-  will-change: transform;
-  transform-origin: top left;
-  transform: translate3d(0, 0, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vw;
+}
+
+.landing-intro-panel {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(88px, 16vw, 260px);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  will-change: transform, opacity, clip-path;
+  /* Explicit start state so the collapse animates from a real value rather than
+     from `none` (which GSAP cannot interpolate). */
+  clip-path: inset(0% 0% 0% 0%);
   backface-visibility: hidden;
 }
 
-.landing-intro-band {
+/* The hero portrait is a transparent cutout (palette PNG with tRNS locally,
+   hasAlpha in Sanity), unlike the solid photos in the outer panels. Without a
+   backing it reads as a figure floating on the dark stage rather than a framed
+   panel like its neighbours.
+
+   No exit animation needed: this is the hero section's own background colour,
+   so as the panel scales up and the stage dissolves to cream, the box merges
+   into the page rather than having to be hidden. Kept as the token, not a
+   literal, because matching that background is the whole point. */
+.landing-intro-panel--centre {
+  background: var(--color-cream);
+}
+
+/* Zero-paint measurement target for the final fit.
+   Flip.fit needs a real, measurable element to fit onto — there is no API for
+   handing it a synthetic rect. The hero portrait's wrapper is the wrong target
+   because LiquidImage paints `object-contain object-bottom` inside it, so the
+   picture is letterboxed narrower than its box (up to 35% at tablet widths).
+   This proxy is positioned over the *painted* rect, so the centre panel lands
+   on the picture rather than the box.
+
+   `position: fixed` with top/left 0 and an explicit px translate means the
+   border box lands exactly at the viewport coordinates we measured, with no
+   dependence on an offset parent. No padding or border, so border-box equals
+   the content box Flip measures. */
+.landing-intro-fit-proxy {
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  z-index: -1;
+}
+
+/* Wordmark, top-left. Geometry and type are lifted verbatim from TopNav so the
+   label sits exactly where the real nav's `© name` will appear — at the
+   handoff it reads as the nav arriving early rather than one element vanishing
+   and a different one taking its place. */
+/* The `top` values are measured, not copied from TopNav's padding: the nav is a
+   flex row whose line box adds ~4px on top of its `pt-`, so matching the
+   padding alone left the label sitting 4px high. These land the text box on the
+   nav's exact y. */
+.landing-intro-wordmark {
   position: absolute;
-  inset: 0;
-  z-index: 4;
-  background: #1a1a1a;
-  will-change: transform;
-  transform-origin: top left;
-  transform: translate3d(0, 0, 0) scaleX(0) scaleY(0);
-  backface-visibility: hidden;
+  left: 24px;
+  top: 32.8px;
+  z-index: 5;
+  overflow: hidden;
+  opacity: 0;
 }
 
+@media (min-width: 768px) {
+  .landing-intro-wordmark {
+    left: 40px;
+    top: 43.6px;
+  }
+}
+
+.landing-intro-wordmark p {
+  margin: 0;
+  font-size: 19.36px;
+  font-weight: 363;
+  letter-spacing: -0.01em;
+  /* No explicit line-height: TopNav sets none either, so leaving both at the
+     browser default is what makes the two text boxes resolve to the same
+     height — and therefore the same baseline at the handoff. */
+  color: #fffcfa;
+}
+
+/* Anchored right, so the digits grow leftward as the count climbs and the `%`
+   stays put. Pinned left, the glyph would drift as 9 → 10 → 100. */
 .landing-intro-counter {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  right: clamp(1.25rem, 4vw, 3.5rem);
+  bottom: clamp(1rem, 3vw, 2.5rem);
   z-index: 5;
   overflow: hidden;
   opacity: 0;
@@ -491,11 +571,70 @@ html.cs-flatten::view-transition-new(root) {
 .landing-intro-counter p {
   margin: 0;
   font-family: var(--font-helv);
-  font-size: clamp(4rem, 13vw, 12rem);
+  font-size: clamp(2.5rem, 7vw, 6rem);
   font-weight: 300;
   line-height: 0.85;
   letter-spacing: 0;
-  color: #181818;
+  color: #fffcfa;
+}
+
+/* The intro is skipped entirely under reduced motion (LandingIntro.tsx returns
+   before touching the DOM), but keep the stage provably inert if it ever
+   renders. */
+@media (prefers-reduced-motion: reduce) {
+  .landing-intro-stage {
+    display: none;
+  }
+}
+
+/* ── Top Progress Bar ───────────────────────────────────────────────────
+   Slim bar pinned to the top of the viewport, filled via TopProgressBar
+   (GSAP-driven width creep toward a ceiling, then a quick finish to 100%).
+
+   Rendered only by RouteLoadingOverlay, for the pre-transition wait on a cold
+   navigation.
+
+   z-index sits above FollowCursor (10050) so its trail isn't drawn over the
+   bar, and below .landing-intro-stage (11000), which owns the screen
+   outright while it runs.
+
+   Deliberately NOT scroll-locked — no `is-transitioning` here. That class
+   carries `pointer-events: none` on the body, which is the exact freeze this
+   whole feature exists to remove. `pointer-events: none` on the overlay
+   itself keeps the page underneath live and scrollable instead. */
+.route-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.route-progress-overlay[data-visible="true"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.route-progress-track {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+}
+
+.route-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-progress-bar {
+    transition: none !important;
+  }
 }
 
 /* ── Page Wrapper (animated container) ───────────────────── */
