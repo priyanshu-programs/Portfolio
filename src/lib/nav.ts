@@ -3,7 +3,7 @@ import type { SiteSettings } from "@/lib/sanity/types";
 export const NAV_LINKS = [
   { label: "Work", href: "/work" },
   { label: "About", href: "/about" },
-  { label: "Contact", href: "/#contact" },
+  { label: "Contact", href: "/contact" },
 ];
 
 /** Ink used when blend is off and the CMS hasn't chosen one. Matches /work's body colour. */

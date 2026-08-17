@@ -60,10 +60,6 @@ const SLOTS = [
   { rate: 1.0, width: "385px" },
 ] as const;
 
-/** How much taller the image is than its slot. The image can only travel
- *  through the overflow this creates, so it caps the parallax throw. */
-const IMAGE_OVERFLOW = 0.8;
-
 /**
  * Per-slot blurb placement. The leading class name matters beyond styling: the
  * entrance timeline and the reduced-motion branch both select these three
@@ -218,20 +214,6 @@ export default function AboutStage() {
 
     const heading = headingRef.current;
 
-    /**
-     * How far the image inside a mask may travel: exactly the overflow it has
-     * beyond its slot, so its own top and bottom edges can never come into
-     * view. Measured from the live elements rather than derived from
-     * IMAGE_OVERFLOW arithmetic — the rendered heights are the truth, and a
-     * resize must not be able to desync them.
-     */
-    const throwPx = (frame: HTMLElement, rate: number, strength = 1) => {
-      const img = frame.querySelector<HTMLElement>(".about-slot-img");
-      if (!img) return 0;
-      const overflow = img.offsetHeight - frame.offsetHeight;
-      return overflow > 0 ? overflow * rate * strength : 0;
-    };
-
     // Reduced motion: land everything in its rest state and register no
     // ScrollTriggers at all, so the section is a plain static layout.
     if (reduceMotion) {
@@ -242,7 +224,7 @@ export default function AboutStage() {
 
         // Images park at their natural offset rather than mid-throw, so a
         // no-motion reader sees a composed frame, not a half-scrolled crop.
-        gsap.set(".about-slot-img", { y: 0 });
+        gsap.set(".about-slot-img-inner", { y: 0, scale: 1 });
 
         const apprenticeshipText = root?.querySelector(".about-apprenticeship");
         if (apprenticeshipText) {
@@ -386,14 +368,19 @@ export default function AboutStage() {
       const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
       const frameWrappers = gsap.utils.toArray<HTMLElement>(".about-frame-wrapper", root);
 
-      frameWrappers.forEach((wrapper, i) => {
-        const frame = wrapper.querySelector<HTMLElement>(".about-frame");
-        const slot = SLOTS[i] ?? SLOTS[0];
-        const img = wrapper.querySelector<HTMLElement>(".about-slot-img");
-        if (!frame || !img) return;
+      // boxThrow: the frame's own drift, now a subtle secondary depth cue.
+      // innerThrow: the window's contents — a 1.19x-scaled, still fully
+      // uncropped (object-contain) image — sliding inside the fixed frame,
+      // capped so the scaled overflow never runs out and shows a gap.
+      const boxThrow = isDesktop ? 84 : 34;
+      const innerThrow = isDesktop ? 39 : 20;
+      const scrub = 0.35;
 
-        // 1. Box Parallax: The "reveal box" moves UP as we scroll down
-        const boxThrow = isDesktop ? 200 : 80;
+      frameWrappers.forEach((wrapper, i) => {
+        const slot = SLOTS[i] ?? SLOTS[0];
+        const inner = wrapper.querySelector<HTMLElement>(".about-slot-img-inner");
+
+        // Box parallax: the frame itself drifts, each slot at its own rate.
         gsap.fromTo(
           wrapper,
           { y: boxThrow * slot.rate },
@@ -404,28 +391,32 @@ export default function AboutStage() {
               trigger: wrapper,
               start: "top bottom",
               end: "bottom top",
-              scrub: 1.5,
+              scrub,
             },
           }
         );
 
-        // 2. Image Reveal: The picture inside moves DOWN to counter the scroll
-        gsap.fromTo(
-          img,
-          { y: () => -throwPx(frame, 1, 1), scale: 1.15 },
-          {
-            y: 0,
-            scale: 1,
-            ease: "none",
-            scrollTrigger: {
-              trigger: wrapper,
-              start: "top bottom",
-              end: "bottom top",
-              scrub: 1.5,
-              invalidateOnRefresh: true,
-            },
-          },
-        );
+        // Window parallax: the scaled-up image slides inside the frame at
+        // its own rate, revealing previously off-screen portions of itself —
+        // the actual "window into a larger image" effect. Scale is held
+        // constant across the tween so it doesn't reset to 1.
+        if (inner) {
+          gsap.fromTo(
+            inner,
+            { y: innerThrow * slot.rate, scale: 1.19 },
+            {
+              y: -innerThrow * slot.rate,
+              scale: 1.19,
+              ease: "none",
+              scrollTrigger: {
+                trigger: wrapper,
+                start: "top bottom",
+                end: "bottom top",
+                scrub,
+              },
+            }
+          );
+        }
       });
     });
 
@@ -531,14 +522,16 @@ export default function AboutStage() {
           </div>
         </div>
 
-        {/* ── Right column: the three masked photo slots ──────────────────
+        {/* ── Right column: the three photo slots ──────────────────────────
             Stacked in normal flow with generous gaps so the column is
             taller than one viewport — that extra height is what the page
             scrolls through while the left column stays sticky. Each slot is
-            a FIXED window: its box never moves or resizes once seated, and
-            `overflow-hidden` is what makes it a mask. The image inside is
-            taller by IMAGE_OVERFLOW and is the only thing that travels
-            (see the parallax rig above). */}
+            a fixed-size, clipped window (.about-slot-img); the image inside
+            renders uncropped via object-contain but is scaled up 1.19x
+            (.about-slot-img-inner) so it slides behind the window on scroll,
+            revealing itself rather than being fully static (see the parallax
+            rig above). The frame also drifts slightly, each slot at its own
+            rate, as a secondary depth cue. */}
         <div className="mt-14 flex flex-col items-end gap-16 lg:mt-0 lg:flex-1 lg:items-stretch lg:gap-24 lg:pb-[14vh] lg:pt-[calc(14vh+clamp(2.5rem,6vw,6rem))] lg:mr-[calc(50%-50vw)]">
           {slots.slice(0, 3).map((entry, i) => {
             const slot = SLOTS[i] ?? SLOTS[0];
@@ -556,21 +549,20 @@ export default function AboutStage() {
                 }}
               >
                 <div className="about-frame relative h-full w-full will-change-transform">
-                  <div className="relative h-full w-full overflow-hidden">
-                    {/* Oversized on purpose. Percentage height is relative
-                        to the mask, so the overflow scales with the layout
-                        and the throw stays proportional at every size. */}
-                    <div
-                      className="about-slot-img absolute inset-x-0 top-0 will-change-transform"
-                      style={{ height: `${(1 + IMAGE_OVERFLOW) * 100}%` }}
-                    >
-                      <Image
-                        src={src}
-                        alt={entry.alt ?? ""}
-                        fill
-                        sizes="(max-width: 1023px) 33vw, 27vw"
-                        className="object-cover"
-                      />
+                  <div className="relative h-full w-full">
+                    <div className="about-slot-img relative h-full w-full overflow-hidden">
+                      <div
+                        className="about-slot-img-inner absolute inset-0 will-change-transform"
+                        style={{ transform: "scale(1.19)", transformOrigin: "center center" }}
+                      >
+                        <Image
+                          src={src}
+                          alt={entry.alt ?? ""}
+                          fill
+                          sizes="(max-width: 1023px) 33vw, 27vw"
+                          className="object-contain"
+                        />
+                      </div>
                     </div>
                   </div>
 

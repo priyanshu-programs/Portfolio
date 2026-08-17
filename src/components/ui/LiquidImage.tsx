@@ -56,6 +56,17 @@ interface LiquidImageProps {
   className?: string;
 }
 
+/** Fired on the container once the picture is actually on screen — the first
+ *  WebGL draw has landed, or the fallback <img> has completed. Consumers that
+ *  reveal this element need that guarantee: the canvas is transparent until its
+ *  texture (a *separate* fetch) loads and a frame is drawn, so "mounted" and
+ *  "painted" are far apart on a slow network. */
+export const LIQUID_IMAGE_READY_EVENT = "liquid-image:ready";
+
+/** Mirrors the event as state, so a listener that attaches late — after the
+ *  paint already happened — can still tell. The event alone would be missed. */
+export const LIQUID_IMAGE_READY_ATTR = "data-liquid-ready";
+
 // The WebGL texture must be same-origin (or CORS-readable). Remote images
 // (e.g. Sanity CDN URLs) are routed through our same-origin proxy so the
 // texture read doesn't taint the canvas; local /images/... paths are already
@@ -94,10 +105,37 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
     const fallback = fallbackRef.current;
     canvas.style.removeProperty("display");
 
+    // A previous run may have marked this container ready; this run repaints
+    // from scratch, so the guarantee has to be re-earned.
+    container.removeAttribute(LIQUID_IMAGE_READY_ATTR);
+
+    let didSignalReady = false;
+    /** Announce "there are pixels on screen now" exactly once per run. */
+    const markReady = () => {
+      if (didSignalReady) return;
+      didSignalReady = true;
+      container.setAttribute(LIQUID_IMAGE_READY_ATTR, "");
+      container.dispatchEvent(
+        new CustomEvent(LIQUID_IMAGE_READY_EVENT, { bubbles: false })
+      );
+    };
+
     // Show fallback by default; hide it once WebGL canvas is confirmed working
     const showFallback = () => {
       canvas.style.display = "none";
       if (fallback) fallback.style.display = "";
+      // The fallback <img> is now the visible layer, so readiness is *its*
+      // load state — which `complete` already answers for a cached or
+      // finished decode.
+      const img = fallback?.querySelector("img");
+      if (!img || img.complete) {
+        markReady();
+      } else {
+        img.addEventListener("load", markReady, { once: true });
+        // A broken fallback still has to release anything waiting on us,
+        // otherwise a consumer gated on this event would wait forever.
+        img.addEventListener("error", markReady, { once: true });
+      }
     };
 
     const hideFallback = () => {
@@ -315,6 +353,9 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
 
       renderer.render({ scene: mesh });
       dirty = false;
+      // First frame with the texture actually bound. Before this the canvas is
+      // transparent, so signalling any earlier would be a lie.
+      if (texture.image) markReady();
     };
     reqId = requestAnimationFrame(update);
 
