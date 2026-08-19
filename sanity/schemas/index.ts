@@ -1,26 +1,27 @@
-import { siteSettings } from "./siteSettings";
-import { hero } from "./hero";
-import { aboutWork } from "./aboutWork";
 import { about } from "./about";
-import { services } from "./services";
+import { aboutWork } from "./aboutWork";
+import aboutWriteups from "./aboutWriteups";
 import { ctaCollage } from "./ctaCollage";
 import { floatingMenu } from "./floatingMenu";
-import { workProject } from "./workProject";
+import { hero } from "./hero";
+import { services } from "./services";
+import { siteSettings } from "./siteSettings";
 import { tag } from "./tag";
+import { workProject } from "./workProject";
 
 export const schemaTypes = [
   siteSettings,
   hero,
-  aboutWork,
   about,
+  aboutWork,
+  aboutWriteups,
   services,
   ctaCollage,
   floatingMenu,
-  workProject,
   tag,
+  workProject,
 ];
 
-/** Document types that exist as a single editable record (not a collection). */
 export const singletonTypes = new Set([
   "siteSettings",
   "hero",
