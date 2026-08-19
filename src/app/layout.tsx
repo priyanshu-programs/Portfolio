@@ -1,4 +1,5 @@
 import { Hanken_Grotesk } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { ViewTransitions } from "next-view-transitions";
 import SmoothScroll from "@/components/SmoothScroll";
@@ -8,6 +9,7 @@ import RouteLoadingOverlay from "@/components/transition/RouteLoadingOverlay";
 import SiteFooter from "@/components/sections/SiteFooter";
 import { ContentProvider } from "@/components/ContentProvider";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
+import { ARM_SCRIPT } from "@/lib/landingIntroArm";
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -49,6 +51,11 @@ export default async function RootLayout({
 
   return (
     <ViewTransitions>
+      {/* `suppressHydrationWarning` on both elements below is load-bearing, not
+          boilerplate: the arming script stamps a class on <html> before React
+          hydrates, so the client's className cannot match the server HTML.
+          Removing either attribute means a hydration warning on every armed
+          load of the home page. */}
       <html
         lang="en"
         className={`h-full antialiased ${hanken.variable}`}
@@ -58,6 +65,26 @@ export default async function RootLayout({
           className="min-h-full flex flex-col bg-white text-black font-sans font-light"
           suppressHydrationWarning
         >
+          {/*
+            Pre-paint gate for the home intro. Keep this as a `beforeInteractive`
+            script so it is scheduled before hydration and runs before the intro
+            can paint.
+
+            Why not a hand-written <head>: Next owns <head> through the Metadata
+            API (this layout uses generateMetadata), and the layout docs
+            explicitly warn against adding one. First-child-of-<body> is just as
+            early, because the render-blocking stylesheet in <head> is already
+            applied by the time the parser gets here.
+
+            No nonce: next.config.ts sends no `script-src`. If a real CSP is
+            ever added there, this script needs the nonce or the intro gate
+            silently stops working and the flash comes back.
+          */}
+          <Script
+            id="landing-intro-arm"
+            strategy="beforeInteractive"
+            dangerouslySetInnerHTML={{ __html: ARM_SCRIPT }}
+          />
           <ContentProvider value={content}>
             <SmoothScroll>
               {children}

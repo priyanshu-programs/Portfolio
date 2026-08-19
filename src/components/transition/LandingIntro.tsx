@@ -11,11 +11,12 @@ import {
   LIQUID_IMAGE_READY_ATTR,
   LIQUID_IMAGE_READY_EVENT,
 } from "@/components/ui/LiquidImage";
+import { INTRO_ARMED_CLASS } from "@/lib/landingIntroArm";
 
 gsap.registerPlugin(ScrollTrigger, Flip, CustomEase);
 
-/** Fires (on `window`) once the intro has finished — or was skipped — so the
- *  hero knows it may play its entrance. */
+/** Fires (on `window`) when the intro's handoff begins — or was skipped — so
+ *  the hero can play its entrance alongside the wipe. */
 export const LANDING_INTRO_DONE_EVENT = "landing-intro:done";
 
 /** Attribute on the hero's portrait wrapper. The centre panel is fitted to this
@@ -49,7 +50,8 @@ const RISE = CustomEase.create("intro-rise", "0.33, 0, 0.1, 1");
    never needs measuring directly. */
 
 /** Aspect ratio of the portrait art, used only if the DOM can't supply one.
- *  The local asset is 1086×1448 and the optimized file 750×1000 — both 0.75. */
+ *  The local asset (hero-portrait.webp) is 1086×1448 and the optimized file
+ *  750×1000 — both 0.75. */
 const PORTRAIT_FALLBACK_ASPECT = 0.75;
 
 const readPortraitAspect = (wrapper: HTMLElement): number => {
@@ -99,6 +101,14 @@ const getPaintedPortraitRect = (wrapper: HTMLElement) => {
  * reduced motion. What it deliberately does *not* do is replay on a soft
  * navigation back to home, which would drop a 5.6s scroll-locked sequence on
  * top of the 0.9s view-transition the click already triggered.
+ *
+ * ── HAS A PRE-PAINT TWIN ─────────────────────────────────────────────────
+ * This is the authoritative rule, but it runs too late to raise the intro's
+ * cover: it lives in a client bundle, so the earliest it can fire is the effect
+ * below — after the browser has already painted the homepage. `ARM_SCRIPT` in
+ * src/lib/landingIntroArm.ts is a hand-copied version of this predicate that a
+ * parser-blocking script runs before first paint. Change one, change the other;
+ * that file explains why sharing code between them is impossible.
  */
 export function shouldPlayLandingIntro(): boolean {
   if (typeof window === "undefined") return false;
@@ -132,13 +142,59 @@ export function shouldPlayLandingIntro(): boolean {
   return true;
 }
 
-/** Five panels, centre last-standing. Outer panels are on screen ~1.5s and
- *  collapse first, so a repeated source at the edge reads as texture, not as a
- *  duplicate. Falls back to local art when Sanity is unreachable. */
-const FALLBACK_CENTRE = "/images/hero-portrait.png";
-const FALLBACK_OUTER = "/images/about 1.jpg";
+/** Five panels, centre last-standing. Only the centre is CMS-driven — it has to
+ *  be, because the fit at the end lands on whatever the hero is about to show.
+ *  The four outer panels are a fixed local set (see `panels` below); they are on
+ *  screen ~1.5s and collapse first, so they are set dressing rather than
+ *  content. This fallback covers the centre when Sanity is unreachable. */
+const FALLBACK_CENTRE = "/images/hero-portrait.webp";
 const PANEL_COUNT = 5;
 const CENTRE_INDEX = 2;
+
+/* ── Beat 1's wave ────────────────────────────────────────────────────────
+   The entrance used to be one tween with a flat `stagger: { each: 0.14 }`: five
+   identical arcs offset by a constant. Evenly-spaced starts on identical motion
+   read as five separate entrances keeping time, which is exactly what a wave is
+   not.
+
+   Two things make it read as one swell instead, both keyed on a panel's ring —
+   its distance from the centre (0, 1, or 2):
+
+   - Starts are spaced *sub-linearly*, so the gap between ring 0 and ring 1 is
+     wider than between ring 1 and ring 2. Constant spacing is a metronome; a
+     closing gap is a curve.
+   - Travel grows with the ring, so the outer panels cover more ground in the
+     same window. They are still moving while the centre is already settling,
+     and the crest visibly propagates outward rather than the row arriving in
+     tiers.
+
+   The scale spread is deliberately tiny — it stops the outer panels from
+   reading as flat cards sliding up, and is not meant to be individually
+   noticeable.
+
+   ── MIRRORED IN CSS ──────────────────────────────────────────────────────
+   `html.intro-armed .landing-intro-panel:nth-child(...)` in globals.css hard-
+   codes these same y/scale values per ring, so the pre-paint cover's first
+   frame matches what `gsap.set` writes below. Change these, change those. */
+
+/** A panel's distance from the centre: 0 for the centre, 2 for the edges. */
+const panelRing = (index: number) => Math.abs(index - CENTRE_INDEX);
+
+/** Start offset per ring, in px. Values duplicated in globals.css. */
+const PANEL_RISE_Y = [56, 66, 76];
+
+/** Start scale per ring. Values duplicated in globals.css. */
+const PANEL_RISE_SCALE = [0.94, 0.932, 0.925];
+
+/**
+ * When each ring begins its rise, in seconds.
+ *
+ * The total spread is what keeps this inside beat 1's existing window: the last
+ * panel starts at 0.31 and runs 1.5s, landing at ~1.81 — while the gather at
+ * 1.35 is a 1.5s tween of its own, so the two overlap rather than queue. Widen
+ * this and the edges are still arriving after the row has started to close.
+ */
+const PANEL_RISE_DELAY = [0, 0.19, 0.31];
 
 /** Longest we'll hold the sequence waiting on image decode before starting
  *  anyway. A preloader that waits on a slow network is worse than one that
@@ -225,7 +281,7 @@ const unlockViewport = () => {
  *
  * Runs on every genuine load of `/`, reload included. It is skipped on soft
  * navigation back to home, on back/forward restores, and under reduced motion.
- * Dispatches LANDING_INTRO_DONE_EVENT when finished so the hero can animate
+ * Dispatches LANDING_INTRO_DONE_EVENT when the handoff begins so the hero can animate
  * everything *except* the portrait — which this component now owns.
  */
 export default function LandingIntro() {
@@ -236,6 +292,7 @@ export default function LandingIntro() {
   const name = content?.settings?.name ?? "Priyanshu Roy";
 
   const stageRef = useRef<HTMLDivElement>(null);
+  const veilRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const counterRef = useRef<HTMLDivElement>(null);
   const counterTextRef = useRef<HTMLParagraphElement>(null);
@@ -244,47 +301,54 @@ export default function LandingIntro() {
   const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   /** Centre is the hero portrait itself, so the fit at the end lands on the
-   *  same picture the hero is about to show. Outer slots draw from the about
-   *  page's photos — the only other tall, full-resolution art in the CMS —
-   *  cycling if there are fewer than four. */
+   *  same picture the hero is about to show. */
   const centreSrc = content?.hero?.portrait ?? FALLBACK_CENTRE;
-  /** Joined rather than kept as an array so the memo below is keyed on the URLs
-   *  themselves. `content` gets a new identity on every revalidation, and the
-   *  sequence runs off a `[panels]` effect — so keying on the object would tear
-   *  down and restart a running intro (stranding the hero portrait visible via
-   *  the cleanup's restore) whenever the CMS content merely re-resolved to the
-   *  same images. */
-  const outerKey = (content?.about?.slots ?? [])
-    .map((slot) => slot.image)
-    .filter((src): src is string => Boolean(src))
-    .join("|");
 
+  /** Outer slots are local art, not CMS content: four fixed files for four
+   *  slots, read 0,1,_,2,3 around the centre. The modulo is defensive only —
+   *  with PANEL_COUNT at 5 the index can never run past the pool. */
   const panels = useMemo(() => {
-    const pool = outerKey ? outerKey.split("|") : [];
+    const preloaderImages = [
+      "/images/preloader-1.jpg",
+      "/images/preloader-2.jpg",
+      "/images/preloader-4.jpg",
+      "/images/preloader-5.jpg",
+    ];
 
     return Array.from({ length: PANEL_COUNT }, (_, i) => {
       if (i === CENTRE_INDEX) return centreSrc;
-      // Outer slots read 0,1,_,2,3 into the pool.
       const outerIndex = i > CENTRE_INDEX ? i - 1 : i;
-      return pool.length
-        ? pool[outerIndex % pool.length]
-        : FALLBACK_OUTER;
+      return preloaderImages[outerIndex % preloaderImages.length];
     });
-  }, [centreSrc, outerKey]);
+  }, [centreSrc]);
 
   useEffect(() => {
     const announceDone = () => {
       window.dispatchEvent(new CustomEvent(LANDING_INTRO_DONE_EVENT));
     };
 
+    /** Lowers the pre-paint cover raised by ARM_SCRIPT.
+     *
+     *  Safe to call when the class was never stamped, which is the common case:
+     *  the script and `shouldPlayLandingIntro()` are two copies of one rule, so
+     *  on every skip path below the class is already absent. Calling it anyway
+     *  is the cheap half of the drift insurance — if the two ever disagree, the
+     *  authoritative predicate wins on this frame instead of the page sitting
+     *  dark until the script's failsafe timeout fires. */
+    const disarmCover = () => {
+      document.documentElement.classList.remove(INTRO_ARMED_CLASS);
+    };
+
     // Skip the intro (soft nav, back/forward, or reduced motion): let the hero
     // reveal immediately.
     if (!shouldPlayLandingIntro()) {
+      disarmCover();
       requestAnimationFrame(announceDone);
       return;
     }
 
     const stage = stageRef.current;
+    const veil = veilRef.current;
     const row = rowRef.current;
     const counter = counterRef.current;
     const counterText = counterTextRef.current;
@@ -296,6 +360,7 @@ export default function LandingIntro() {
 
     if (
       !stage ||
+      !veil ||
       !row ||
       !counter ||
       !counterText ||
@@ -303,6 +368,9 @@ export default function LandingIntro() {
       !wordmarkText ||
       panelEls.length === 0
     ) {
+      // Nothing here can animate, so the cover must not stay up waiting on a
+      // sequence that will never run.
+      disarmCover();
       requestAnimationFrame(announceDone);
       return;
     }
@@ -329,14 +397,44 @@ export default function LandingIntro() {
     // Paint the initial state before anything is visible, so the stage can be
     // shown without a flash of un-positioned panels.
     gsap.set(stage, { autoAlpha: 1, pointerEvents: "auto" });
+    // Down at rest, covering. Explicit so a re-run of this effect can never
+    // start with the veil still lifted from the previous pass.
+    gsap.set(veil, { yPercent: 0 });
     // Further travel and a shallower scale than a quick entrance would use:
-    // more distance covered more slowly is what reads as weight.
-    gsap.set(panelEls, { y: 56, scale: 0.94, opacity: 0 });
+    // more distance covered more slowly is what reads as weight. Per-ring, so
+    // the edges start lower and further back — see the wave constants above.
+    //
+    // Indexed off `panelEls`, not the original render order: a null ref would
+    // shift every subsequent panel's ring by one. In practice the filter above
+    // drops nothing (all five refs are set by the time the effect runs), which
+    // is also what keeps these indices aligned with the CSS `:nth-child` mirror.
+    gsap.set(panelEls, {
+      y: (i: number) => PANEL_RISE_Y[panelRing(i)],
+      scale: (i: number) => PANEL_RISE_SCALE[panelRing(i)],
+      opacity: 0,
+    });
     gsap.set(counter, { autoAlpha: 1 });
     gsap.set(counterText, { yPercent: 0, opacity: 1 });
     counterText.textContent = "0%";
     gsap.set(wordmark, { autoAlpha: 1 });
     gsap.set(wordmarkText, { yPercent: 110, opacity: 0 });
+
+    /* Ownership of the dark cover transfers here, from CSS to GSAP.
+
+       The `html.intro-armed` rules and the `gsap.set`s above write identical
+       values, and inline styles outrank a class rule — so by this line the
+       composited result is already GSAP's and the class is inert. Dropping it
+       now cannot expose a frame (`gsap.set` is synchronous, so nothing has
+       painted since), whereas dropping it any earlier would revert the stage to
+       `visibility: hidden` for a frame and flash the white page through: the
+       original bug, inverted.
+
+       Disarming *here* rather than in `finishIntro` is also what keeps the
+       arming script's failsafe timeout out of the way. That timeout is shorter
+       than this timeline, so leaving the class up for the whole sequence would
+       let it tear the cover out mid-flight. Released at t≈0, the failsafe goes
+       back to being purely a JS-never-arrived escape hatch. */
+    disarmCover();
 
     /* Hide the real hero portrait for the duration of the intro.
 
@@ -352,7 +450,16 @@ export default function LandingIntro() {
     if (heroPortrait) gsap.set(heroPortrait, { opacity: 0 });
 
     /** Wait for the panel images to decode so they never fade in half-painted,
-     *  but never let that wait become the bottleneck. */
+     *  but never let that wait become the bottleneck.
+     *
+     *  This wait used to be visible as a second step — a beat of dark stage
+     *  before anything moved — because the stage itself only appeared once the
+     *  bundle had hydrated. With the pre-paint cover it is just a dark hold at
+     *  the front of a preloader, which is what a preloader is supposed to look
+     *  like. The panels are `opacity: 0` throughout it under
+     *  `html.intro-armed .landing-intro-panel`, matching what the `gsap.set`
+     *  above writes, so the hold is seamless at both ends. Nothing to shorten
+     *  here. */
     const waitForImages = () => {
       const imgs = Array.from(stage.querySelectorAll("img"));
       const decodes = imgs.map((img) =>
@@ -381,6 +488,9 @@ export default function LandingIntro() {
         // visible by now no matter which path got here — including the fallback
         // `onComplete` firing while a slow paint is still pending.
         if (heroPortrait) gsap.set(heroPortrait, { opacity: 1 });
+        // No `disarmCover()` here on purpose: the pre-paint class was released
+        // back at the handoff, thousands of frames ago, so this `autoAlpha: 0`
+        // is uncontested and the stage retires normally.
         gsap.set(stage, { autoAlpha: 0, pointerEvents: "none" });
         unlockViewport();
         requestAnimationFrame(() => {
@@ -398,8 +508,18 @@ export default function LandingIntro() {
          offsets: the whole point of this sequence is the overlap between them,
          and absolute positions make that legible and tunable. */
 
-      /* 1 — Panels rise, centre-out. The centre leading quietly foreshadows
-         which panel survives the collapse. */
+      /* 1 — Panels rise centre-out as a wave. The centre leading quietly
+         foreshadows which panel survives the collapse.
+
+         `stagger` as a function rather than `{ each, from: "center" }`: the
+         built-in form can only space starts evenly, and even spacing is the
+         thing that made this read as five entrances instead of one swell. The
+         per-ring delays close up as they go outward — see PANEL_RISE_DELAY.
+
+         The panels start from per-ring y/scale (set above), so a single shared
+         end state here is what actually produces the wave: everything converges
+         on y:0 scale:1 in the same 1.5s, and the panels with further to travel
+         are the ones still moving at the end. */
       tl.to(
         panelEls,
         {
@@ -408,7 +528,7 @@ export default function LandingIntro() {
           opacity: 1,
           duration: 1.5,
           ease: RISE,
-          stagger: { each: 0.14, from: "center" },
+          stagger: (i: number) => PANEL_RISE_DELAY[panelRing(i)],
         },
         0
       );
@@ -428,7 +548,7 @@ export default function LandingIntro() {
         count,
         {
           value: 100,
-          duration: 2.5,
+          duration: 3.0,
           ease: "power1.inOut",
           snap: { value: 1 },
           onUpdate: () => {
@@ -438,22 +558,24 @@ export default function LandingIntro() {
         0
       );
 
-      /* 3 + 4 — The row gathers and the panels breathe up together, starting
-         inside beat 1's tail so there is no dead frame between them. */
-      tl.to(row, { gap: "0.4vw", duration: 1.5 }, 1.35)
-        .to(panelEls, { scale: 1.06, duration: 1.5 }, "<");
+      /* 3 — The row gathers, starting inside beat 1's tail so there is no dead
+         frame between them.
 
-      /* 4b — A whisper of a settle so the gather relaxes instead of stopping
-         dead at its peak. Meant to be felt, not seen. */
-      tl.to(panelEls, { scale: 1.045, duration: 0.9, ease: "sine.inOut" }, 2.7);
+         Target and start value are a pair: `.landing-intro-row` opens at 2.5vw
+         (~36px at 1440px) and closes to 0.4vw (~6px), a ~30px move that reads
+         clearly. Both are vw, so the gather covers proportionally the same
+         ground on every viewport. Retune this if that start value ever changes —
+         a target close to the start makes the beat a silent no-op.
+
+         Images stay at their normal scale while the row gathers. */
+      tl.to(row, { gap: "0.4vw", duration: 1.5 }, 1.35);
 
       /* 5 — Outer panels collapse from the edges inward.
 
-         Tightened and pulled earlier (was 2.95, dur 0.95, stagger 0.11) so the
-         collapse is essentially finished before the stage starts to lighten at
-         3.30. Otherwise the last panels are still closing against an
-         already-cream background — they read as stray photo slivers rather than
-         as part of the dark composition. */
+         Finishes at ~3.89, well before the veil starts its wipe at 5.0, so the
+         panels close against the dark field they belong to. The margin matters:
+         a collapse still running once the dark begins to leave reads as stray
+         photo slivers on cream rather than as part of the composition. */
       tl.to(
         outerEls,
         {
@@ -461,7 +583,7 @@ export default function LandingIntro() {
           duration: 0.75,
           stagger: { each: 0.07, from: "edges" },
         },
-        2.7
+        3.0
       );
 
       /* 6 — Counter leaves on its own beat, clearing the stage before the
@@ -469,7 +591,7 @@ export default function LandingIntro() {
       tl.to(
         counterText,
         { yPercent: -115, opacity: 0, duration: 0.6, ease: "power2.in" },
-        2.72
+        3.02
       );
 
       /* 6b — Wordmark leaves on the same beat, so the two corners clear
@@ -477,7 +599,7 @@ export default function LandingIntro() {
       tl.to(
         wordmarkText,
         { yPercent: -115, opacity: 0, duration: 0.6, ease: "power2.in" },
-        2.72
+        3.02
       );
 
       /* 7 — The centre panel is fitted onto the portrait's *painted* rect.
@@ -511,7 +633,7 @@ export default function LandingIntro() {
 
         const fit = Flip.fit(centreEl, proxy, {
           duration: 1.25,
-          ease: SETTLE,
+          ease: "power2.inOut",
           absolute: true,
           scale: true,
           onComplete: removeProxy,
@@ -520,7 +642,7 @@ export default function LandingIntro() {
         // Flip.fit returns null when there is nothing to animate; without this
         // the proxy would linger in the DOM.
         if (!fit) removeProxy();
-      }, 3.95);
+      }, 3.8);
 
       /* 7b — Retire the centre panel's cream backing as it grows.
 
@@ -531,49 +653,88 @@ export default function LandingIntro() {
          size an opaque box would occlude it — leaving a visible rectangular
          seam and slicing through the marquee text.
 
-         So the backing dissolves *before* the expansion, finishing as beat 7
-         begins — the panel grows as a bare portrait, never as a moving box.
+         Its ordering against beat 8 is the safety property: the backing must
+         never clear ahead of the dark, or the cutout is briefly exposed against
+         a still-dark field — the exact look the backing exists to prevent.
 
-         It runs on the same curve as the stage's own dissolve and starts 0.05s
-         after it. That ordering is the safety property: the backing must never
-         clear ahead of the dark, or the cutout is briefly exposed against a
-         still-dark stage — the exact look the backing exists to prevent.
-         Modelled across the window, max(stageDark − backing) is 0. */
+         That test used to be a simple one, because the dark left by fading:
+         a single global opacity, so "is the dark gone yet" had one answer
+         everywhere on screen. Beat 8 is now a wipe, which makes it POSITIONAL —
+         the dark clears at the top of the viewport long before the bottom, and
+         this box sits at screen centre. The restated invariant is geometric:
+
+           the veil's bottom edge must be above the centre panel's top edge
+           before this backing finishes clearing.
+
+         Which is why this runs *after* the wipe rather than before it. The veil
+         travels yPercent 0 → -100 over 1.4s on power3.out from 5.0, so its
+         bottom edge sits at H·(1−u)³ for u = (t−5.0)/1.4:
+
+           t = 5.95  →  u = 0.679,  (1−u)³ = 0.033  →  3.3% of viewport height
+
+         The panel has been at its Flip target since ~5.05. That target is the
+         portrait's painted rect — bottom-anchored, occupying roughly the lower
+         80–90% of the viewport at desktop — so its top edge is at ~10–20% of H.
+         0.033H sits above 0.10H, and the margin only grows as the dissolve runs.
+
+         Ending at 6.45 also puts it clear of the swap at 6.5, so the backing is
+         genuinely gone before the panel retires rather than being taken away by
+         the swap's `opacity: 0` — which is what keeps an opaque box from ever
+         occluding the marquee.
+
+         The margin narrows on a wide, short viewport, where object-contain goes
+         height-constrained and the painted rect reaches y=0. If the cutout ever
+         reads bare on dark there, move this to 6.15 with duration 0.35: the veil
+         is 99% clear at 6.10, so that ordering holds unconditionally. */
       tl.to(
         centreEl,
         {
           backgroundColor: "rgba(255,252,250,0)",
-          duration: 0.6,
+          duration: 0.5,
           ease: "power2.out",
         },
-        3.35
+        5.95
       );
 
-      /* 8 — Handoff. The hero starts while the panel is still travelling, so
-         nav and text arrive *around* the settling portrait rather than after
-         it.
+      /* 8 — Handoff. The hero enters first, from inside the lower part of the
+         dark field. The veil starts a beat later, so its upward travel reads
+         as the consequence/trailing edge of that content pushing into place,
+         rather than as an unrelated overlay animation.
 
-         The stage dissolves early — paired with the backing above rather than
-         held until the end. Retiring the two together is what lets the backing
-         go before the expansion without ever exposing the cutout against a dark
-         field: the background lightens in step with the box, so the panel
-         expands onto an already-light stage.
+         The dark leaves as a shutter, not a fade: the veil's bottom edge
+         travels straight up and off the top of the screen, revealing the cream
+         page beneath. `yPercent: -100` on a full-bleed layer is exactly that
+         motion, and the stage's `overflow: hidden` clips it on the way out.
 
-         `power2.out` front-loads the change, so the darkness clears quickly and
-         the tail is a long soft settle — a slow dissolve that costs no extra
-         time. It also means the veil is fully gone (0.000) by the time the
-         hero's vertical text motion runs at ~5.03, which strengthens rather
-         than risks the wipe-reads-as-fade fix. */
-      tl.add(announceOnce, 4.55);
-      tl.to(
-        stage,
-        {
-          backgroundColor: "rgba(26,26,26,0)",
-          duration: 0.65,
-          ease: "power2.out",
-        },
-        3.3
-      );
+         It is the VEIL that moves, never the stage. The stage also hosts the
+         panels, and the centre one is mid-Flip toward the hero portrait at this
+         moment — wiping the stage would carry the portrait off the top with it.
+         That separation is the whole reason `.landing-intro-veil` exists as its
+         own element rather than as a `background` on the stage.
+
+         Transform only, deliberately. Animating `top`, `height` or `clip-path`
+         here would drop a full-screen layer off the compositor and onto the
+         main thread mid-sequence, alongside the Flip.
+
+         1.4s rather than the old fade's 0.65: a wipe needs visible travel to
+         read as a shutter where a dissolve did not. Starting at 5.0 it lands at
+         6.40, ahead of the swap at 6.50, while the hero's staggered content
+         motion is still settling into the newly revealed page. Beat 7b's
+         dissolve is timed against this tween's easing curve — retime this and
+         re-check that arithmetic.
+
+         `power3.out` front-loads the travel, so the page is uncovered early and
+         the tail is a long settle — the shutter reads as fast and heavy rather
+         than linear. Whatever ease sits here, it must not overshoot: an
+         overshooting curve would dip the veil back down and briefly re-cover
+         the page it had just revealed. */
+      // Start the hero reveal during the centre panel's scale-up. The hero
+      // timeline's small internal offsets then bring the marquee in around the
+      // middle of that fit rather than before it starts or after it settles.
+      // Let the hero establish the cause before the wipe follows it. Its own
+      // stagger makes the elements rise into the frame from below.
+      tl.add(announceOnce, 5.0);
+      tl.to(veil, { yPercent: -100, duration: 1.4, ease: "power3.out" }, 5.0);
       /* 9 — Handing the figure back: an instant swap, not a cross-fade.
 
          These two layers hold the *same* transparent cutout, stacked over a
@@ -612,14 +773,14 @@ export default function LandingIntro() {
           );
         },
         undefined,
-        5.2
+        6.5
       );
 
       /* Hold the timeline open past the swap so its own `onComplete` can't fire
          first and retire the stage mid-handoff. The swap normally resolves well
          inside this window and calls `finishIntro` itself; this only bounds the
          wait. */
-      tl.to({}, { duration: 0.5 }, 5.2);
+      tl.to({}, { duration: 0.5 }, 6.5);
     };
 
     waitForImages().then(build);
@@ -628,6 +789,10 @@ export default function LandingIntro() {
       cancelled = true;
       tl?.kill();
       fitProxy?.remove();
+      // Never leave the page under a cover that nothing is animating. Normally
+      // already released at the handoff above; this covers a teardown that
+      // happened before the effect ever got that far.
+      disarmCover();
       // Never leave the hero's own portrait hidden if the intro is torn down
       // mid-flight — otherwise an unmount during the sequence would strand the
       // page with an invisible portrait.
@@ -638,6 +803,10 @@ export default function LandingIntro() {
 
   return (
     <div ref={stageRef} className="landing-intro-stage" aria-hidden="true">
+      {/* The dark field itself. First child and lowest z-index, so the panels
+          and labels below paint over it; beat 8 wipes it up and away. */}
+      <div ref={veilRef} className="landing-intro-veil" />
+
       <div ref={wordmarkRef} className="landing-intro-wordmark">
         <p ref={wordmarkTextRef}>© {name}</p>
       </div>
@@ -668,9 +837,10 @@ export default function LandingIntro() {
                   : "(max-width: 640px) 34vw, 20vw"
               }
               /* Centre matches the hero's own object-fit so the crop is
-                 identical at the seam; the panel is already 3:4, so this looks
-                 no different during the earlier beats. Outer panels hold
-                 arbitrary aspects and still need to fill their boxes. */
+                 identical at the seam; the panel box already holds the intended
+                 portrait ratio, so this looks no different during the earlier
+                 beats. Outer panels hold arbitrary aspects and still need to
+                 fill their boxes. */
               className={
                 i === CENTRE_INDEX
                   ? "object-contain object-bottom"
