@@ -452,15 +452,132 @@ html.cs-flatten::view-transition-new(root) {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  background: #1a1a1a;
+  /* No `background` here on purpose — the dark field is `.landing-intro-veil`
+     below, a separate child. Beat 8 wipes that layer up and off the screen like
+     a shutter, and it cannot be this element: the stage also hosts the panels,
+     so wiping it would carry the centre panel — mid-Flip toward the hero
+     portrait — off the top with it.
+
+     `overflow: hidden` is load-bearing for that wipe, not just tidiness: it is
+     what clips the veil as it travels past the top edge. */
   isolation: isolate;
   overflow: hidden;
 }
+
+/* The dark field the preloader sits on, and the thing that actually leaves at
+   the end of the sequence.
+
+   A full-bleed opaque layer pinned under the row (`z-index: 2`) and the
+   wordmark/counter (`z-index: 5`), so panels and labels paint over it exactly
+   as they did when this colour lived on the stage itself.
+
+   Deliberately a literal, not `var(--color-ink)`. The two happened to be the
+   same value once and that was a coincidence; the preloader's field is its own
+   colour, not the page's ink.
+
+   Beat 8 animates `yPercent` to -100, never `top`/`height`/`clip-path` — a
+   transform stays on the compositor, and the stage's `overflow: hidden` already
+   does the clipping. */
+.landing-intro-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #1d1d1f;
+  will-change: transform;
+}
+
+/* ── Pre-paint cover ───────────────────────────────────────────────────
+   The stage above is hidden in static CSS and only revealed by
+   `gsap.set(stage, { autoAlpha: 1 })` inside LandingIntro's effect. That reveal
+   cannot happen until React has hydrated and GSAP, Flip, ScrollTrigger,
+   CustomEase, Lenis and OGL have all loaded — and the browser happily paints
+   the finished white homepage in the gap. The result was: white page, then dark
+   preloader, then the page again.
+
+   `html.intro-armed` is stamped by the parser-blocking script in the root
+   layout (see src/lib/landingIntroArm.ts), so these rules are already in effect
+   at the very first painted frame. The stage is dark and covering before the
+   page underneath has been laid out, never mind painted.
+
+   These match the *exact* values LandingIntro's own `gsap.set` writes —
+   visibility visible, opacity 1, pointer-events auto — which is what makes the
+   handoff a no-op rather than a second transition. GSAP writes them as inline
+   styles, which outrank this class rule, so when the effect finally runs the
+   composited result does not change by one pixel and there is nothing to
+   flash. */
+html.intro-armed .landing-intro-stage {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The panels' start state is written by `gsap.set` in LandingIntro's effect,
+   which is post-hydration. Without this the pre-paint cover would show all five
+   panels already at rest, and GSAP's start state would then snap them away to
+   animate them back in — trading the old flash for a new one. These rules mirror
+   that start state so the first painted frame is what beat 1 animates *from*.
+
+   ── PER-RING, AND WHY ────────────────────────────────────────────────────
+   Beat 1 is a wave, not a uniform rise: travel distance grows with a panel's
+   distance from the centre, so the edges sweep further and visibly trail the
+   crest. That makes the start state per-panel, so this mirror has to be
+   per-panel too — a single blanket rule would now disagree with GSAP for four
+   of the five panels.
+
+   With PANEL_COUNT = 5 and CENTRE_INDEX = 2 the rings are fixed: child 3 is the
+   centre, 2 and 4 the mid ring, 1 and 5 the edges. Values are duplicated from
+   `PANEL_RISE_Y` / `PANEL_RISE_SCALE` in LandingIntro.tsx — change one, change
+   the other; both sides carry a pointer here. If PANEL_COUNT ever stops being
+   5, these selectors are wrong and must be rewritten. */
+html.intro-armed .landing-intro-panel {
+  opacity: 0;
+}
+
+/* Centre — ring 0. */
+html.intro-armed .landing-intro-panel:nth-child(3) {
+  transform: translateY(56px) scale(0.94);
+}
+
+/* Mid — ring 1. */
+html.intro-armed .landing-intro-panel:nth-child(2),
+html.intro-armed .landing-intro-panel:nth-child(4) {
+  transform: translateY(66px) scale(0.932);
+}
+
+/* Edges — ring 2. */
+html.intro-armed .landing-intro-panel:nth-child(1),
+html.intro-armed .landing-intro-panel:nth-child(5) {
+  transform: translateY(76px) scale(0.925);
+}
+
+/* No matching rule for `.landing-intro-wordmark` or `.landing-intro-counter`:
+   both wrappers are already `opacity: 0` in static CSS and are revealed by
+   `gsap.set(..., { autoAlpha: 1 })` at the same moment the panels get their
+   start state, so they stay correctly hidden through the pre-paint window on
+   their own. The asymmetry with the panels above is intentional — nothing to
+   "fix" here. */
 
 /* No `contain` here: the centre panel is fitted to the hero portrait's box with
    position:absolute coordinates resolved against this stage, and paint
    containment would clip it mid-flight. */
 
+/* `justify-content: center` is load-bearing, not cosmetic — do not change it to
+   `space-between` to widen the spread. Two beats depend on it:
+
+   - Beat 3 gathers the panels by animating this `gap` down to 0.4vw. That only
+     moves anything while the row's width is its content's width. Under
+     `space-between` the row is pinned to the viewport and flexbox hands the
+     reclaimed space straight back to its own distribution, so the gather is a
+     no-op.
+   - Beat 7 removes the outer panels (`display: none`) before `Flip.fit`. A lone
+     flex child under `space-between` sits at the *start* of the line, so the
+     centre panel would jump flush-left and the portrait would expand in from the
+     top-left corner instead of from centre.
+
+   The row is a tight filmstrip, not an edge-to-edge spread: at 1440px these
+   values give five ~230px panels with ~36px gutters, centred. The gap is the
+   beat-3 gather's start value, so it and the target in LandingIntro.tsx are a
+   pair — widen this and that gather has to be re-tuned or it stops reading. */
 .landing-intro-row {
   position: absolute;
   inset: 0;
@@ -475,6 +592,10 @@ html.cs-flatten::view-transition-new(root) {
   position: relative;
   flex: 0 0 auto;
   width: clamp(88px, 16vw, 260px);
+  /* Matches PORTRAIT_FALLBACK_ASPECT (0.75) in LandingIntro.tsx and the hero
+     portrait asset itself, so the centre panel's box and the Flip target agree
+     exactly — a near-miss ratio leaves a hairline of object-contain letterbox
+     at the seam right before beat 9's instant swap. */
   aspect-ratio: 3 / 4;
   overflow: hidden;
   will-change: transform, opacity, clip-path;
@@ -484,15 +605,19 @@ html.cs-flatten::view-transition-new(root) {
   backface-visibility: hidden;
 }
 
-/* The hero portrait is a transparent cutout (palette PNG with tRNS locally,
+/* The hero portrait is a transparent cutout (hero-portrait.webp locally,
    hasAlpha in Sanity), unlike the solid photos in the outer panels. Without a
    backing it reads as a figure floating on the dark stage rather than a framed
    panel like its neighbours.
 
-   No exit animation needed: this is the hero section's own background colour,
-   so as the panel scales up and the stage dissolves to cream, the box merges
-   into the page rather than having to be hidden. Kept as the token, not a
-   literal, because matching that background is the whole point. */
+   This is the hero section's own background colour, so as the panel scales up
+   the box merges into the page rather than having to be hidden. Kept as the
+   token, not a literal, because matching that background is the whole point.
+
+   It is still retired explicitly in beat 7b, and the ordering against beat 8's
+   wipe is a safety property — see the comment there. Under the old fade "is the
+   dark gone yet" had one global answer; under a wipe it is positional, and this
+   box sits at screen centre. */
 .landing-intro-panel--centre {
   background: var(--color-cream);
 }
@@ -580,7 +705,9 @@ html.cs-flatten::view-transition-new(root) {
 
 /* The intro is skipped entirely under reduced motion (LandingIntro.tsx returns
    before touching the DOM), but keep the stage provably inert if it ever
-   renders. */
+   renders. This now backstops the pre-paint path too: the arming script makes
+   the same reduced-motion check and never stamps the class, and `display: none`
+   would beat the `html.intro-armed` rules above even if it somehow did. */
 @media (prefers-reduced-motion: reduce) {
   .landing-intro-stage {
     display: none;
