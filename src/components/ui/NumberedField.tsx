@@ -48,20 +48,19 @@ export default function NumberedField({
   // globals.css sets `border-color: transparent` on every element inside
   // @layer base, and unlayered CSS beats utilities regardless of specificity, so
   // an explicit colour class is mandatory or the line renders invisible.
-  const underline = error
+  // The line above the field.
+  const topBorder = error
     ? "border-wine"
     : hasValue
       ? "border-ink"
-      : "border-divider";
+      : "border-divider/60"; // Use a subtle border for light mode
 
   const fieldClass = [
-    "peer w-full bg-transparent border-0 border-b py-3 text-ink outline-none",
+    "w-full bg-transparent border-0 py-2 text-ink outline-none",
     "placeholder:text-muted transition-colors duration-300",
-    "focus:border-ink",
-    underline,
   ].join(" ");
 
-  const fieldStyle = { fontSize: "clamp(1.25rem, 2.2vw, 1.75rem)" };
+  const fieldStyle = { fontSize: "clamp(1.1rem, 1.8vw, 1.5rem)" };
 
   const shared = {
     id: name,
@@ -81,40 +80,44 @@ export default function NumberedField({
   };
 
   return (
-    <div className="contact-field">
-      <span
-        aria-hidden="true"
-        className="block text-[13px] tracking-[0.04em] text-muted"
-      >
-        {index}
-      </span>
-
-      {/* The question is the label itself, at the site's nav voice. */}
-      <label
-        htmlFor={name}
-        className="mt-2 block text-[19.36px] text-ink"
-        style={{ fontWeight: 363, letterSpacing: "-0.01em" }}
-      >
-        {label}
-      </label>
-
-      <div className="mt-3">
-        {multiline ? (
-          <textarea {...shared} rows={4} className={`${fieldClass} resize-none`} />
-        ) : (
-          <input {...shared} type="text" />
-        )}
-      </div>
-
-      {error ? (
-        <p
-          id={errorId}
-          role="alert"
-          className="mt-2 text-[13px] tracking-[0.01em] text-wine"
+    <div className={`contact-field border-t py-8 lg:py-10 ${topBorder} transition-colors duration-300 group`}>
+      <div className="flex flex-col md:flex-row gap-2 md:gap-10">
+        <span
+          aria-hidden="true"
+          className="block text-[14px] md:text-[16px] tracking-[0.04em] text-muted md:w-12 shrink-0 md:pt-1"
         >
-          {error}
-        </p>
-      ) : null}
+          {index}
+        </span>
+
+        <div className="flex-1 flex flex-col gap-3">
+          {/* The question is the label itself */}
+          <label
+            htmlFor={name}
+            className="block text-ink text-2xl md:text-3xl"
+            style={{ fontWeight: 400, letterSpacing: "-0.02em" }}
+          >
+            {label}
+          </label>
+
+          <div className="relative">
+            {multiline ? (
+              <textarea {...shared} rows={4} className={`${fieldClass} resize-none`} />
+            ) : (
+              <input {...shared} type="text" />
+            )}
+          </div>
+
+          {error ? (
+            <p
+              id={errorId}
+              role="alert"
+              className="mt-2 text-[13px] tracking-[0.01em] text-wine"
+            >
+              {error}
+            </p>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

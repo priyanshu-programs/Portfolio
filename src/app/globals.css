@@ -230,6 +230,19 @@ body.is-transitioning {
   overflow-x: clip;
 }
 
+/* Pushes the contact sidebar down by one line-height of the contact-lede
+   heading (clamp(3.5rem, 8vw, 6rem) * leading-[1.1]), so the profile picture
+   lines up with the top of the heading's second line instead of the first.
+   Scoped to the lg breakpoint only, so it doesn't fight the mt-20 Tailwind
+   utility used for the stacked mobile layout — unlayered CSS like this beats
+   Tailwind utilities regardless of specificity, so it must not declare
+   anything outside the @media block. */
+@media (min-width: 1024px) {
+  .contact-sidebar {
+    margin-top: calc(clamp(3.5rem, 8vw, 6rem) * 1.1);
+  }
+}
+
 /* ── Fluid Typography Utilities (Tailwind v4 @utility API) ── */
 
 @utility text-hero-label {
@@ -574,10 +587,17 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
      centre panel would jump flush-left and the portrait would expand in from the
      top-left corner instead of from centre.
 
-   The row is a tight filmstrip, not an edge-to-edge spread: at 1440px these
-   values give five ~230px panels with ~36px gutters, centred. The gap is the
-   beat-3 gather's start value, so it and the target in LandingIntro.tsx are a
-   pair — widen this and that gather has to be re-tuned or it stops reading. */
+   The row DOES reach the viewport margins, but it gets there by arithmetic
+   rather than by `space-between`. At 1440px: five ~100px panels (500px total)
+   plus four ~213px gaps = ~1354px, leaving ~3vw of margin each side. The gap is
+   solved from the panel width — (100vw − 6vw margin − 5×panel) ÷ 4 — so the
+   spread stays edge-to-edge across viewports while `justify-content: center`
+   keeps doing the two jobs above. Change the panel width and this gap has to be
+   re-solved or the row stops meeting the margins.
+
+   The gap is also the beat-3 gather's start value, so it and the target in
+   LandingIntro.tsx are a pair — change this and that gather has to be re-tuned
+   or it stops reading. */
 .landing-intro-row {
   position: absolute;
   inset: 0;
@@ -585,17 +605,29 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2.5vw;
+  gap: 14.79vw;
 }
 
 .landing-intro-panel {
   position: relative;
   flex: 0 0 auto;
-  width: clamp(88px, 16vw, 260px);
+  width: clamp(37px, 6.97vw, 113px);
   /* Matches PORTRAIT_FALLBACK_ASPECT (0.75) in LandingIntro.tsx and the hero
      portrait asset itself, so the centre panel's box and the Flip target agree
      exactly — a near-miss ratio leaves a hairline of object-contain letterbox
-     at the seam right before beat 9's instant swap. */
+     at the seam right before beat 9's instant swap.
+
+     ── DO NOT REPLACE THIS WITH A calc()-DERIVED HEIGHT ──────────────────────
+     A previous attempt sized the panel from a shared `--intro-panel-scale`
+     factor written as `calc(width / 750px)`, so a 750x1000 child could be
+     scaled down to match. `calc()` CANNOT DIVIDE BY A LENGTH — CSS Values 3
+     §8.1 types the right operand of `/` as <number>, and no shipping browser
+     implements the Level 4 type algebra that would allow length ÷ length.
+
+     Custom properties parse as opaque token streams, so that produced no
+     console error: it failed silently at substitution time, taking `height`
+     to `auto` (→ 0, the only child being abspos) and the child's `transform`
+     to `none`. `aspect-ratio` is the whole reason the box has a height. */
   aspect-ratio: 3 / 4;
   overflow: hidden;
   will-change: transform, opacity, clip-path;
@@ -617,9 +649,17 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
    It is still retired explicitly in beat 7b, and the ordering against beat 8's
    wipe is a safety property — see the comment there. Under the old fade "is the
    dark gone yet" had one global answer; under a wipe it is positional, and this
-   box sits at screen centre. */
+   box sits at screen centre.
+
+   ── `background-color`, NOT the `background` shorthand ────────────────────
+   Load-bearing, not a style preference. Beat 7b animates the `backgroundColor`
+   longhand. Declaring the shorthand here re-asserts it over the inline longhand
+   GSAP writes each frame, so the tween runs to completion while the box never
+   visibly changes — the backing simply stays opaque behind the portrait and the
+   figure arrives at the hero inside a white rectangle. There is no error
+   anywhere; it just silently does nothing. Do not "tidy" this back. */
 .landing-intro-panel--centre {
-  background: var(--color-cream);
+  background-color: var(--color-cream);
 }
 
 /* Zero-paint measurement target for the final fit.
@@ -773,4 +813,254 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   overflow-x: hidden;
   overflow-x: clip;
   overflow-y: visible;
+}
+
+/* ── Pearl pill button ─────────────────────────────────────
+   Shared by the "More work" link (AboutWork.tsx) and the contact form's submit
+   (ContactStage.tsx), so the two interactives read as one system.
+
+   Lives here rather than in either component: both previously carried their own
+   ~150-line inline <style> template literal, re-allocated on every render — and
+   ContactStage re-renders on every form-action transition. The two copies had
+   also drifted apart, which is exactly the failure mode this prevents.
+
+   The label selector covers both `span` (ContactStage) and `p` (AboutWork);
+   they mark up the label differently and both must keep their text motion. */
+.pearl-btn {
+  --white: #ffe7ff;
+  --bg: #080808;
+  --radius: 100px;
+  outline: none;
+  cursor: pointer;
+  border: 0;
+  position: relative;
+  border-radius: var(--radius);
+  background-color: var(--bg);
+  transition: all 0.2s ease;
+  box-shadow:
+    inset 0 0.3rem 0.9rem rgba(255, 255, 255, 0.28),
+    inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.7),
+    inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.48),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.pearl-btn-spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 0;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(
+    circle 140px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    black 0%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle 140px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    black 0%,
+    transparent 100%
+  );
+}
+
+.pearl-btn-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    rgba(96, 165, 250, 0.4) 0deg,
+    rgba(129, 140, 248, 0.3) 72deg,
+    rgba(59, 130, 246, 0.2) 144deg,
+    rgba(129, 140, 248, 0.4) 216deg,
+    rgba(96, 165, 250, 0.2) 288deg,
+    rgba(96, 165, 250, 0.4) 360deg
+  );
+  animation: spinWavePearl 5s linear infinite;
+  /* Paused by default: the parent is opacity:0 until hover, so off-hover this
+     rotation + 20px blur was repainting a box 3x the button size for nothing.
+     Only the parent opacity was ever being toggled. */
+  animation-play-state: paused;
+  filter: blur(20px);
+}
+
+@keyframes spinWavePearl {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.pearl-btn:hover .pearl-btn-spotlight {
+  opacity: 1;
+}
+
+.pearl-btn:hover .pearl-btn-spotlight::before {
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pearl-btn-spotlight::before {
+    animation: none;
+  }
+}
+
+.pearl-btn .wrap {
+  font-size: 1.125rem;
+  font-family: system-ui, sans-serif;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 16px 36px;
+  border-radius: inherit;
+  position: relative;
+  overflow: hidden;
+  display: block;
+  z-index: 1;
+}
+
+.pearl-btn .wrap span,
+.pearl-btn .wrap p {
+  margin: 0;
+  display: inline-block;
+  transition: all 0.2s ease;
+  transform: translateY(2%);
+  -webkit-mask-image: linear-gradient(to bottom, white 70%, transparent);
+  mask-image: linear-gradient(to bottom, white 70%, transparent);
+}
+
+.pearl-btn .wrap::before,
+.pearl-btn .wrap::after {
+  content: "";
+  position: absolute;
+  transition: all 0.3s ease;
+}
+
+.pearl-btn .wrap::before {
+  left: -15%;
+  right: -15%;
+  bottom: 25%;
+  top: -100%;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+.pearl-btn .wrap::after {
+  left: 6%;
+  right: 6%;
+  top: 12%;
+  bottom: 40%;
+  border-radius: 22px 22px 0 0;
+  box-shadow: inset 0 10px 8px -10px rgba(255, 255, 255, 0.78);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(0, 0, 0, 0) 50%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.pearl-btn:hover {
+  box-shadow:
+    inset 0 0.3rem 0.5rem rgba(255, 255, 255, 0.38),
+    inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.7),
+    inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.68),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.pearl-btn:hover .wrap::before {
+  transform: translateY(-5%);
+}
+
+.pearl-btn:hover .wrap::after {
+  opacity: 0.4;
+  transform: translateY(5%);
+}
+
+.pearl-btn:hover .wrap span,
+.pearl-btn:hover .wrap p {
+  transform: translateY(-4%);
+}
+
+.pearl-btn:active {
+  transform: translateY(4px);
+  box-shadow:
+    inset 0 0.3rem 0.5rem rgba(255, 255, 255, 0.48),
+    inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.8),
+    inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.38),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* ── In-flight (busy) state ────────────────────────────────
+   Driven off `aria-busy`, which the submit button already sets from the
+   useActionState pending flag — the accessible state and the visual state
+   are therefore the same source, and cannot drift.
+
+   Deliberately NOT faded out. A half-opacity button reads as "unavailable",
+   but this one is working: it holds the pressed geometry (same offset and
+   shadow set as :active, so pressed and busy speak one physical language)
+   and runs a slow sweep to show time passing. The `disabled` attribute is
+   still what blocks a double submit. */
+.pearl-btn[aria-busy="true"] {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 0.3rem 0.5rem rgba(255, 255, 255, 0.48),
+    inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.8),
+    inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.38),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* The sweep rides on .wrap's ::after rather than a new element: ::before is
+   already the pearl's top-lobe highlight and moving it would flatten the
+   button's shape. ::after is the smaller upper gloss, which is the closest
+   thing to a specular band already, so overriding it here reads as that
+   highlight travelling rather than as a foreign stripe crossing the pearl. */
+.pearl-btn[aria-busy="true"] .wrap::after {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  box-shadow: none;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 35%,
+    rgba(255, 255, 255, 0.26) 50%,
+    rgba(255, 255, 255, 0) 65%
+  );
+  background-size: 220% 100%;
+  animation: sweepPearl 1.4s linear infinite;
+  opacity: 1;
+  transform: none;
+}
+
+/* Animating background-position, not transform: the band has to travel the
+   full width while the element stays clipped to the button's radius. */
+@keyframes sweepPearl {
+  0% { background-position: 160% 0; }
+  100% { background-position: -60% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pearl-btn[aria-busy="true"] .wrap::after {
+    animation: none;
+    background: none;
+  }
+}
+
+/* ── BloomFieldGradient blob radius ────────────────────────
+   The contact page's mesh-gradient blobs take their radius from this property,
+   which BloomFieldGradient.tsx measures from live layout and writes per layer.
+
+   Registering it is insurance, not decoration: an unregistered `var(--r)` that
+   never gets set is invalid at computed-value time, which drops the ENTIRE
+   `background-image` declaration and renders the layer as nothing. With an
+   initial value it degrades to a zero-radius blob instead — invisible, but it
+   fails as a missing blob rather than a missing backdrop. */
+@property --r {
+  syntax: "<length>";
+  initial-value: 0px;
+  inherits: false;
 }

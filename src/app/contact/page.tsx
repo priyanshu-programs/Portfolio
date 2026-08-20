@@ -13,10 +13,9 @@ export default function ContactPage() {
 
   return (
     <PageWrapper>
-      <main className="relative block bg-cream">
-        {/* Cream at every breakpoint, same as /about — so the nav sits on a
-            background that never changes and flat ink stays legible. Difference
-            blend here would invert against nothing. */}
+      <main className="relative block">
+        {/* Background is now the animated Bloom Field mesh gradient inside
+            ContactStage — no solid bg-cream needed on the wrapper. */}
         <div className="absolute inset-x-0 top-0 z-40 text-ink mix-blend-normal">
           <TopNav name={name} variant="simple" blend={false} />
         </div>

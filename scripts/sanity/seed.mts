@@ -57,7 +57,7 @@ async function main() {
     handRight,
     twoHands,
   ] = await Promise.all([
-    uploadLocal("hero-portrait.png"),
+    uploadLocal("hero-portrait.webp"),
     uploadLocal("ornament-1.jpg"),
     uploadLocal("ornament-2.png"),
     uploadLocal("about.png"),
@@ -80,6 +80,7 @@ async function main() {
       _type: "siteSettings",
       name: "Priyanshu Roy",
       email: "priyanshuroy.official19@gmail.com",
+      phone: "+91 80746 65471",
       timezone: "IST — UTC +5:30",
       socials: [
         { _key: "instagram", label: "Instagram", href: "#" },
@@ -172,6 +173,15 @@ async function main() {
       seoTitle: "About — Priyanshu Roy",
       seoDescription:
         "Brand identity and web development, made together.",
+    },
+    {
+      _id: "contact",
+      _type: "contact",
+      heading: "Let's start a project together",
+      successHeading: "Got it.",
+      successBody: "I'll come back to you shortly. If it's easier, pick a time now.",
+      submitLabel: "Send it!",
+      submitPendingLabel: "Sending",
     },
     {
       _id: "services",

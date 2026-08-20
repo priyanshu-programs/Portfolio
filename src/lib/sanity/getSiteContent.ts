@@ -76,8 +76,30 @@ interface RawSiteContent {
       alt?: string;
       blurb?: AboutParagraph;
     }[];
+    achievements?: {
+      title?: string;
+      description?: string;
+      badge?: unknown;
+      image?: unknown;
+      alt?: string;
+      hidden?: boolean;
+    }[];
     socials?: SocialLink[];
     email?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+  } | null;
+  contact?: {
+    heading?: string;
+    successHeading?: string;
+    successBody?: string;
+    submitLabel?: string;
+    submitPendingLabel?: string;
+    profileImage?: unknown;
+    showBackgroundGradient?: boolean;
+    socials?: SocialLink[];
+    email?: string;
+    phone?: string;
     seoTitle?: string;
     seoDescription?: string;
   } | null;
@@ -142,10 +164,34 @@ function normalize(raw: RawSiteContent): SiteContent {
               })
             )
             .filter((slot) => Boolean(slot.image)),
+          achievements: raw.about.achievements?.map((item) => ({
+            title: item.title,
+            description: item.description,
+            badge: buildImageUrl(item.badge, 300, { compress: false }),
+            image: buildImageUrl(item.image, 1200, { compress: false }),
+            alt: item.alt,
+            hidden: item.hidden,
+          })),
           socials: raw.about.socials,
           email: raw.about.email,
           seoTitle: raw.about.seoTitle,
           seoDescription: raw.about.seoDescription,
+        }
+      : undefined,
+    contact: raw.contact
+      ? {
+          heading: raw.contact.heading,
+          successHeading: raw.contact.successHeading,
+          successBody: raw.contact.successBody,
+          submitLabel: raw.contact.submitLabel,
+          submitPendingLabel: raw.contact.submitPendingLabel,
+          profileImage: buildImageUrl(raw.contact.profileImage, 400),
+          showBackgroundGradient: raw.contact.showBackgroundGradient,
+          socials: raw.contact.socials,
+          email: raw.contact.email,
+          phone: raw.contact.phone,
+          seoTitle: raw.contact.seoTitle,
+          seoDescription: raw.contact.seoDescription,
         }
       : undefined,
     services: raw.services

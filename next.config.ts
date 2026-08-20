@@ -28,6 +28,12 @@ const nextConfig: NextConfig = {
   // Baseline security headers. No CSP here: the site inlines styles and runs
   // WebGL shaders, so a policy strict enough to be worth having needs its own
   // pass with nonces rather than a blanket 'unsafe-inline'.
+  //
+  // When that pass happens: the root layout renders a parser-blocking inline
+  // <script> (ARM_SCRIPT, src/lib/landingIntroArm.ts) that must run before
+  // first paint to stop the home preloader flashing the page first. A
+  // `script-src` without its nonce will silently kill it — the site keeps
+  // working, it just visibly flashes on every load of `/` again.
   async headers() {
     return [
       {

@@ -15,16 +15,16 @@ const builder = projectId
  */
 export function buildImageUrl(
   source: unknown,
-  width = 1200
+  width = 1200,
+  options?: { compress?: boolean }
 ): string | undefined {
   if (!builder || !source) return undefined;
   try {
-    return builder
-      .image(source as SanityImageSource)
-      .width(width)
-      .auto("format")
-      .quality(85)
-      .url();
+    const img = builder.image(source as SanityImageSource).width(width);
+    if (options?.compress === false) {
+      return img.url();
+    }
+    return img.auto("format").quality(85).url();
   } catch {
     return undefined;
   }

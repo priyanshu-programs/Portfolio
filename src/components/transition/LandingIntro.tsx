@@ -412,6 +412,24 @@ export default function LandingIntro() {
       y: (i: number) => PANEL_RISE_Y[panelRing(i)],
       scale: (i: number) => PANEL_RISE_SCALE[panelRing(i)],
       opacity: 0,
+      /* Hand every property the late beats overwrite back to the stylesheet.
+
+         This effect re-runs: `panels` is a dependency, and `centreSrc` changes
+         the moment CMS content arrives, so the second pass is the normal case
+         on a cold load rather than an edge case. Nothing in `finishIntro` or the
+         teardown restores these — the stage just goes `autoAlpha: 0` with the
+         inline styles still on it — so without this a re-run would start with
+         the outer panels still `display: none` from beat 7, the centre backing
+         already transparent, and its layer promotion already dropped. The intro
+         would replay against a half-finished stage.
+
+         Empty strings, not concrete values: these are all CSS-declared, and
+         removing the inline property is what lets the stylesheet speak again. */
+      display: "",
+      overflow: "",
+      backgroundColor: "",
+      willChange: "",
+      backfaceVisibility: "",
     });
     gsap.set(counter, { autoAlpha: 1 });
     gsap.set(counterText, { yPercent: 0, opacity: 1 });
@@ -561,21 +579,30 @@ export default function LandingIntro() {
       /* 3 — The row gathers, starting inside beat 1's tail so there is no dead
          frame between them.
 
-         Target and start value are a pair: `.landing-intro-row` opens at 2.5vw
-         (~36px at 1440px) and closes to 0.4vw (~6px), a ~30px move that reads
-         clearly. Both are vw, so the gather covers proportionally the same
-         ground on every viewport. Retune this if that start value ever changes —
-         a target close to the start makes the beat a silent no-op.
+         Target and start value are a pair: `.landing-intro-row` opens wide at
+         14.79vw (~213px at 1440px, the value that puts the row edge-to-edge)
+         and closes to 2.5vw (~36px). Both are vw, so the gather covers
+         proportionally the same ground on every viewport.
 
-         Images stay at their normal scale while the row gathers. */
-      tl.to(row, { gap: "0.4vw", duration: 1.5 }, 1.35);
+         This is now the sequence's biggest move by far — the row travels from
+         spanning the full viewport down to a tight filmstrip, rather than the
+         ~11px nudge it made when the panels opened close together. Retune the
+         target whenever that start value changes; they are one pair, and a
+         target near the start makes the beat a silent no-op. */
+      tl.to(row, { gap: "2.5vw", duration: 1.5 }, 1.35);
 
       /* 5 — Outer panels collapse from the edges inward.
 
-         Finishes at ~3.89, well before the veil starts its wipe at 5.0, so the
+         Finishes at ~3.89, just before the veil starts its wipe at 3.95, so the
          panels close against the dark field they belong to. The margin matters:
          a collapse still running once the dark begins to leave reads as stray
-         photo slivers on cream rather than as part of the composition. */
+         photo slivers on cream rather than as part of the composition.
+
+         That margin is now 0.06s rather than the ~1.1s it had when the wipe ran
+         at 5.0 — ordered, but no longer comfortable. It tightened because the
+         wipe moved earlier to stay ahead of beat 7b (see there). If the last
+         slivers ever read as sitting on cream, push the wipe to 4.05 rather
+         than dragging this collapse earlier — beat 7's fit is measured off it. */
       tl.to(
         outerEls,
         {
@@ -631,6 +658,35 @@ export default function LandingIntro() {
         // panel's own box doesn't shift mid-fit.
         gsap.set(outerEls, { display: "none" });
 
+        /* Release the panel's `overflow: hidden` before the fit.
+
+           That clip is wanted for beats 1-6, where it keeps the portrait inside
+           the panel's box as the panels rise and gather. It is fatal from here
+           on: Flip grows the panel past those bounds, and a clip would shear the
+           portrait off at its own edges mid-flight. Paired with
+           `.landing-intro-stage` having no `contain` for the same reason — see
+           globals.css. */
+        gsap.set(centreEl, { overflow: "visible" });
+
+        /* Drop the panel's layer-promotion hints before it flies.
+
+           `will-change: transform, opacity, clip-path` and
+           `backface-visibility: hidden` (globals.css) earned their keep through
+           beats 1-6, where the panel rises, gathers and clips. They are wrong
+           from here on: they pin the panel to its own compositor layer at the
+           size it had when promoted, and that stale layer painted over the
+           expansion — the same-size rectangle that appeared to mask the
+           scale-up. `willChange: "auto"` is the load-bearing line.
+
+           The backgroundColor set is belt-and-braces against beat 7b having
+           silently no-opped (see the shorthand warning there), and is
+           idempotent when it hasn't. */
+        gsap.set(centreEl, {
+          backgroundColor: "rgba(255,252,250,0)",
+          willChange: "auto",
+          backfaceVisibility: "visible",
+        });
+
         const fit = Flip.fit(centreEl, proxy, {
           duration: 1.25,
           ease: "power2.inOut",
@@ -645,6 +701,15 @@ export default function LandingIntro() {
       }, 3.8);
 
       /* 7b — Retire the centre panel's cream backing as it grows.
+
+         ── PAIRED WITH THE CSS PROPERTY ──────────────────────────────────
+         This animates the `backgroundColor` longhand, so
+         `.landing-intro-panel--centre` must declare `background-color`, not the
+         `background` shorthand. A shorthand there re-asserts itself over the
+         inline value GSAP writes and the tween becomes a silent no-op — it runs
+         to completion while the box stays fully opaque, which is exactly the
+         bug this beat existed to prevent and showed as a white rectangle behind
+         the portrait all the way onto the hero. Change one, check the other.
 
          The backing exists so the transparent portrait reads as a framed panel
          beside its solid neighbours. But the hero it is expanding into is not a
@@ -666,40 +731,46 @@ export default function LandingIntro() {
            the veil's bottom edge must be above the centre panel's top edge
            before this backing finishes clearing.
 
-         Which is why this runs *after* the wipe rather than before it. The veil
-         travels yPercent 0 → -100 over 1.4s on power3.out from 5.0, so its
-         bottom edge sits at H·(1−u)³ for u = (t−5.0)/1.4:
+         This runs *before* the expansion, not across it. The backing fades out
+         while the outer panels are still collapsing (beat 5, 3.0 → 3.89), so
+         the frame reads as: the neighbours pull back, the centre panel sheds
+         its box, and only then does the bare portrait start to grow. Running it
+         during the expansion made the box linger into the scale-up; running it
+         after made it pop out once the panel had already landed.
 
-           t = 5.95  →  u = 0.679,  (1−u)³ = 0.033  →  3.3% of viewport height
+         3.35 → 3.75 puts the whole dissolve inside the collapse window and
+         finishes it 0.05s before beat 7 measures and fires at 3.8.
 
-         The panel has been at its Flip target since ~5.05. That target is the
-         portrait's painted rect — bottom-anchored, occupying roughly the lower
-         80–90% of the viewport at desktop — so its top edge is at ~10–20% of H.
-         0.033H sits above 0.10H, and the margin only grows as the dissolve runs.
+         The safety property still holds, and it is the reason this cannot move
+         much earlier. The portrait is a transparent cutout — with the backing
+         gone it reads as a figure floating on whatever is behind it, so the
+         dark must be leaving by the time the box does. Beat 8's veil starts its
+         wipe at 3.95, and the panel is small and centred here (its top edge is
+         around 0.4H at this point in the sequence, before any scale-up), so the
+         veil is still fully covering when this finishes.
 
-         Ending at 6.45 also puts it clear of the swap at 6.5, so the backing is
-         genuinely gone before the panel retires rather than being taken away by
-         the swap's `opacity: 0` — which is what keeps an opaque box from ever
-         occluding the marquee.
-
-         The margin narrows on a wide, short viewport, where object-contain goes
-         height-constrained and the painted rect reaches y=0. If the cutout ever
-         reads bare on dark there, move this to 6.15 with duration 0.35: the veil
-         is 99% clear at 6.10, so that ordering holds unconditionally. */
-      tl.to(
+         That is deliberate: the cutout sits against *dark* for the 0.2s between
+         this dissolve ending and the wipe starting, which is correct — a bare
+         figure on the dark field is the intended look at that instant. What must
+         never happen is the reverse ordering at the *bottom* of the wipe, where
+         a half-lifted veil would leave the figure straddling dark and cream.
+         Keep this tween finishing before 3.95 and that cannot arise. */
+      tl.fromTo(
         centreEl,
+        { backgroundColor: "rgba(255,252,250,1)" },
         {
           backgroundColor: "rgba(255,252,250,0)",
-          duration: 0.5,
+          duration: 0.4,
           ease: "power2.out",
         },
-        5.95
+        3.35
       );
 
-      /* 8 — Handoff. The hero enters first, from inside the lower part of the
-         dark field. The veil starts a beat later, so its upward travel reads
-         as the consequence/trailing edge of that content pushing into place,
-         rather than as an unrelated overlay animation.
+      /* 8 — Handoff. The hero reveal and the wipe now start together, on the
+         same frame as beat 7b's dissolve is getting underway, so the dark
+         leaves *while* the portrait is still growing into place rather than
+         after it has arrived. The hero's own stagger still brings its elements
+         up from below into the newly uncovered page.
 
          The dark leaves as a shutter, not a fade: the veil's bottom edge
          travels straight up and off the top of the screen, revealing the cream
@@ -716,25 +787,25 @@ export default function LandingIntro() {
          here would drop a full-screen layer off the compositor and onto the
          main thread mid-sequence, alongside the Flip.
 
-         1.4s rather than the old fade's 0.65: a wipe needs visible travel to
-         read as a shutter where a dissolve did not. Starting at 5.0 it lands at
-         6.40, ahead of the swap at 6.50, while the hero's staggered content
-         motion is still settling into the newly revealed page. Beat 7b's
-         dissolve is timed against this tween's easing curve — retime this and
-         re-check that arithmetic.
+         0.9s, starting at 3.95 and landing at 4.85. Long enough that the wipe
+         still reads as travel rather than a cut, short enough that the veil
+         clears the centre panel's top edge before beat 7b's dissolve has taken
+         the backing away. That second constraint is the binding one: beat 7b
+         derives its safety margin from this exact start and duration, so
+         retiming either without re-checking the table over there reintroduces
+         the bare-cutout-on-dark bug it exists to prevent.
 
          `power3.out` front-loads the travel, so the page is uncovered early and
          the tail is a long settle — the shutter reads as fast and heavy rather
          than linear. Whatever ease sits here, it must not overshoot: an
          overshooting curve would dip the veil back down and briefly re-cover
          the page it had just revealed. */
-      // Start the hero reveal during the centre panel's scale-up. The hero
-      // timeline's small internal offsets then bring the marquee in around the
-      // middle of that fit rather than before it starts or after it settles.
-      // Let the hero establish the cause before the wipe follows it. Its own
-      // stagger makes the elements rise into the frame from below.
-      tl.add(announceOnce, 5.0);
-      tl.to(veil, { yPercent: -100, duration: 1.4, ease: "power3.out" }, 5.0);
+      // Start the hero reveal as the wipe begins, partway into the centre
+      // panel's scale-up: the hero's small internal offsets then bring the
+      // marquee in around the middle of that fit rather than before it starts
+      // or after it settles.
+      tl.add(announceOnce, 3.95);
+      tl.to(veil, { yPercent: -100, duration: 0.9, ease: "power3.out" }, 3.95);
       /* 9 — Handing the figure back: an instant swap, not a cross-fade.
 
          These two layers hold the *same* transparent cutout, stacked over a
@@ -745,12 +816,30 @@ export default function LandingIntro() {
          No pair of opacity tweens avoids it; only ever having one copy visible
          does.
 
-         An instant swap is invisible here because the two rects are already
-         pixel-identical: the fit lands at 5.20 onto the portrait's *painted*
-         rect, and the centre panel is requested at the hero's own `sizes` with
-         the same `object-contain object-bottom` mapping.
+         An instant swap is invisible here because the two layers already
+         match on both axes that could give it away.
 
-         It is gated on the portrait having actually painted, because the hero's
+         Geometry: the fit lands at 5.05 onto the portrait's *painted* rect,
+         with the same `object-contain object-bottom` mapping on both sides.
+
+         Resolution: the centre panel is requested at the hero's own `sizes`, so
+         the right FILE is downloaded. That is all it can do, and it is not
+         enough on its own — raster size is layout box × layer scale, so a large
+         file painted into a ~100px panel is still a ~100px texture magnified
+         ~6x by the fit. Expect some softness across this frame.
+
+         A 750x1000 wrapper scaled down by CSS used to sit here to fix exactly
+         that, making the fit a minification instead. It was removed because its
+         scale factor is not expressible in CSS — see the note on
+         `.landing-intro-panel` in globals.css. Reinstating it means computing
+         the scale in JS; that is the fix if this seam ever reads too soft.
+
+         Placed at 5.15, just after the fit settles. It used to sit at 6.5,
+         which left ~1.3s of nothing at the end once the wipe and the dissolve
+         moved earlier — the sequence had visibly finished but the stage was
+         still up and the viewport still locked. */
+
+      /* It is gated on the portrait having actually painted, because the hero's
          WebGL canvas is transparent until its texture loads — swapping to an
          unpainted canvas is the other half of the same flash. */
       tl.call(
@@ -773,14 +862,14 @@ export default function LandingIntro() {
           );
         },
         undefined,
-        6.5
+        5.15
       );
 
       /* Hold the timeline open past the swap so its own `onComplete` can't fire
          first and retire the stage mid-handoff. The swap normally resolves well
          inside this window and calls `finishIntro` itself; this only bounds the
          wait. */
-      tl.to({}, { duration: 0.5 }, 6.5);
+      tl.to({}, { duration: 0.5 }, 5.15);
     };
 
     waitForImages().then(build);
@@ -812,16 +901,10 @@ export default function LandingIntro() {
       </div>
 
       <div ref={rowRef} className="landing-intro-row">
-        {panels.map((src, i) => (
-          <div
-            key={i}
-            ref={(el) => {
-              panelRefs.current[i] = el;
-            }}
-            className={`landing-intro-panel${
-              i === CENTRE_INDEX ? " landing-intro-panel--centre" : ""
-            }`}
-          >
+        {panels.map((src, i) => {
+          const isCentre = i === CENTRE_INDEX;
+
+          const image = (
             <Image
               src={src}
               alt=""
@@ -830,26 +913,58 @@ export default function LandingIntro() {
               /* The centre panel ends the sequence at the hero portrait's
                  painted size (~603px wide at desktop), so it must be requested
                  at the hero's own sizes — a 20vw hint resolves to ~284px and
-                 goes visibly soft as it grows. */
+                 goes visibly soft as it grows.
+
+                 This governs which FILE is downloaded, and that is all it can
+                 do. It is not on its own enough to keep the portrait sharp
+                 through beat 7: raster size is layout box × layer scale, not
+                 the decoded bitmap's size, so a large file painted into a
+                 ~100px box still gets magnified ~6x as a ~100px texture.
+                 Requesting the large file is still correct and costs nothing —
+                 it is just not sufficient. See beat 9 for the rest. */
               sizes={
-                i === CENTRE_INDEX
+                isCentre
                   ? "(max-width: 640px) 95vw, (max-width: 1024px) 80vw, 750px"
                   : "(max-width: 640px) 34vw, 20vw"
               }
               /* Centre matches the hero's own object-fit so the crop is
-                 identical at the seam; the panel box already holds the intended
-                 portrait ratio, so this looks no different during the earlier
-                 beats. Outer panels hold arbitrary aspects and still need to
-                 fill their boxes. */
-              className={
-                i === CENTRE_INDEX
-                  ? "object-contain object-bottom"
-                  : "object-cover"
-              }
+                 identical at the seam; the panel's own 3/4 box holds the
+                 intended portrait ratio, so this looks no different during the
+                 earlier beats. Outer panels hold arbitrary aspects and still
+                 need to fill their boxes.
+
+                 ── `contain` HERE IS PAIRED WITH getPaintedPortraitRect ───────
+                 Tempting to switch to `object-cover` so an off-ratio CMS
+                 portrait can't letterbox inside the box. Don't. That function
+                 computes beat 7's Flip target as the hero's CONTAIN rect,
+                 because LiquidImage paints contain. Painting cover here and
+                 contain there makes the two rects disagree for any portrait that
+                 isn't 3:4, and beat 9's instant swap turns into a visible jump.
+
+                 It is only ever a silent no-op or a bug, never a fix: at 3:4
+                 contain and cover are the same picture. And `buildImageUrl`
+                 (src/lib/sanity/image.ts) constrains WIDTH only — no crop — so
+                 the CMS is free to serve a different ratio one day. Contain
+                 degrades to a letterbox then; cover would desync the seam. */
+              className={isCentre ? "object-contain object-bottom" : "object-cover"}
               aria-hidden="true"
             />
-          </div>
-        ))}
+          );
+
+          return (
+            <div
+              key={i}
+              ref={(el) => {
+                panelRefs.current[i] = el;
+              }}
+              className={`landing-intro-panel${
+                isCentre ? " landing-intro-panel--centre" : ""
+              }`}
+            >
+              {image}
+            </div>
+          );
+        })}
       </div>
 
       <div ref={counterRef} className="landing-intro-counter">

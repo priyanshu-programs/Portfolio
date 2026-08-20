@@ -7,6 +7,7 @@ export const siteSettings = defineType({
   fields: [
     defineField({ name: "name", title: "Name", type: "string" }),
     defineField({ name: "email", title: "Contact Email", type: "string" }),
+    defineField({ name: "phone", title: "Phone Number", type: "string" }),
     defineField({
       name: "timezone",
       title: "Timezone Label",
