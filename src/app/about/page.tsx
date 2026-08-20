@@ -3,6 +3,7 @@
 import PageWrapper from "@/components/transition/PageWrapper";
 import TopNav from "@/components/ui/TopNav";
 import AboutStage from "@/components/sections/AboutStage";
+import AboutAchievements from "@/components/sections/AboutAchievements";
 import { useSiteContent } from "@/components/ContentProvider";
 
 const DEFAULT_NAME = "Priyanshu Roy";
@@ -25,6 +26,7 @@ export default function AboutPage() {
         </div>
 
         <AboutStage />
+        <AboutAchievements />
       </main>
     </PageWrapper>
   );

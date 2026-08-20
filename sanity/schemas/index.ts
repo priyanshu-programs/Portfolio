@@ -1,6 +1,7 @@
 import { about } from "./about";
 import { aboutWork } from "./aboutWork";
 import aboutWriteups from "./aboutWriteups";
+import { contact } from "./contact";
 import { ctaCollage } from "./ctaCollage";
 import { floatingMenu } from "./floatingMenu";
 import { hero } from "./hero";
@@ -15,6 +16,7 @@ export const schemaTypes = [
   about,
   aboutWork,
   aboutWriteups,
+  contact,
   services,
   ctaCollage,
   floatingMenu,
@@ -27,6 +29,7 @@ export const singletonTypes = new Set([
   "hero",
   "aboutWork",
   "about",
+  "contact",
   "services",
   "ctaCollage",
   "floatingMenu",

@@ -212,7 +212,7 @@ const AboutMeButton = () => {
 
       <div className="about-btn-fx">
         <Link
-          href="/#work"
+          href="/about"
           className="about-btn-box"
           aria-label="About me"
           ref={buttonRef}
@@ -254,161 +254,22 @@ const MoreWorkButton = () => {
   };
 
   return (
-    <>
-      <style>{`
-        .pearl-btn {
-          --white: #ffe7ff;
-          --bg: #080808;
-          --radius: 100px;
-          outline: none;
-          cursor: pointer;
-          border: 0;
-          position: relative;
-          border-radius: var(--radius);
-          background-color: var(--bg);
-          transition: all 0.2s ease;
-          box-shadow:
-            inset 0 0.3rem 0.9rem rgba(255, 255, 255, 0.28),
-            inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.7),
-            inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.48),
-            0 4px 8px rgba(0, 0, 0, 0.2);
-          padding: 0;
-          display: inline-block;
-          overflow: hidden;
-        }
-        .pearl-btn-spotlight {
-          position: absolute;
-          inset: 0;
-          border-radius: var(--radius);
-          pointer-events: none;
-          opacity: 0;
-          transition: opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-          z-index: 0;
-          overflow: hidden;
-          -webkit-mask-image: radial-gradient(
-            circle 140px at var(--mouse-x, 50%) var(--mouse-y, 50%),
-            black 0%,
-            transparent 100%
-          );
-          mask-image: radial-gradient(
-            circle 140px at var(--mouse-x, 50%) var(--mouse-y, 50%),
-            black 0%,
-            transparent 100%
-          );
-        }
-        .pearl-btn-spotlight::before {
-          content: "";
-          position: absolute;
-          inset: -100%;
-          background: conic-gradient(
-            from 0deg at 50% 50%,
-            rgba(96, 165, 250, 0.4) 0deg,
-            rgba(129, 140, 248, 0.3) 72deg,
-            rgba(59, 130, 246, 0.2) 144deg,
-            rgba(129, 140, 248, 0.4) 216deg,
-            rgba(96, 165, 250, 0.2) 288deg,
-            rgba(96, 165, 250, 0.4) 360deg
-          );
-          animation: spinWavePearl 5s linear infinite;
-          filter: blur(20px);
-        }
-        @keyframes spinWavePearl {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .pearl-btn:hover .pearl-btn-spotlight {
-          opacity: 1;
-        }
-        .pearl-btn .wrap {
-          font-size: 1.125rem;
-          font-family: system-ui, sans-serif;
-          font-weight: 300;
-          color: rgba(255, 255, 255, 0.9);
-          padding: 16px 36px;
-          border-radius: inherit;
-          position: relative;
-          overflow: hidden;
-          display: block;
-          z-index: 1;
-        }
-        .pearl-btn .wrap p {
-          margin: 0;
-          transition: all 0.2s ease;
-          transform: translateY(2%);
-          -webkit-mask-image: linear-gradient(to bottom, white 70%, transparent);
-          mask-image: linear-gradient(to bottom, white 70%, transparent);
-        }
-        .pearl-btn .wrap::before,
-        .pearl-btn .wrap::after {
-          content: "";
-          position: absolute;
-          transition: all 0.3s ease;
-        }
-        .pearl-btn .wrap::before {
-          left: -15%;
-          right: -15%;
-          bottom: 25%;
-          top: -100%;
-          border-radius: 50%;
-          background-color: rgba(255, 255, 255, 0.10);
-        }
-        .pearl-btn .wrap::after {
-          left: 6%;
-          right: 6%;
-          top: 12%;
-          bottom: 40%;
-          border-radius: 22px 22px 0 0;
-          box-shadow: inset 0 10px 8px -10px rgba(255, 255, 255, 0.78);
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.28) 0%,
-            rgba(0, 0, 0, 0) 50%,
-            rgba(0, 0, 0, 0) 100%
-          );
-        }
-        .pearl-btn:hover {
-          box-shadow:
-            inset 0 0.3rem 0.5rem rgba(255, 255, 255, 0.38),
-            inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.7),
-            inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.68),
-            0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        .pearl-btn:hover .wrap::before {
-          transform: translateY(-5%);
-        }
-        .pearl-btn:hover .wrap::after {
-          opacity: 0.4;
-          transform: translateY(5%);
-        }
-        .pearl-btn:hover .wrap p {
-          transform: translateY(-4%);
-        }
-        .pearl-btn:active {
-          transform: translateY(4px);
-          box-shadow:
-            inset 0 0.3rem 0.5rem rgba(255, 255, 255, 0.48),
-            inset 0 -0.1rem 0.3rem rgba(0, 0, 0, 0.8),
-            inset 0 -0.4rem 0.9rem rgba(255, 255, 255, 0.38),
-            0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-      `}</style>
-      <Link
-        href="/work"
-        className="pearl-btn block"
-        ref={buttonRef}
-        onMouseMove={handleMouseMove}
-      >
-        <div className="pearl-btn-spotlight" />
-        <div className="wrap">
-          <p>
-            More work
-            {workCount > 0 && (
-              <sup className="text-[0.6em] -translate-y-[0.3em]"> {workCount}</sup>
-            )}
-          </p>
-        </div>
-      </Link>
-    </>
+    <Link
+      href="/work"
+      className="pearl-btn block"
+      ref={buttonRef}
+      onMouseMove={handleMouseMove}
+    >
+      <div className="pearl-btn-spotlight" />
+      <div className="wrap">
+        <p>
+          More work
+          {workCount > 0 && (
+            <sup className="text-[0.6em] -translate-y-[0.3em]"> {workCount}</sup>
+          )}
+        </p>
+      </div>
+    </Link>
   );
 };
 
@@ -637,13 +498,7 @@ export default function AboutWork() {
         <div className="lg:w-[55%] w-full mt-10 sm:mt-0">
           <p
             id="work"
-            className="reveal-bottom uppercase text-black/70 pb-4 lg:pb-5"
-            style={{
-              fontFamily: "var(--font-helv)",
-              fontWeight: 300,
-              fontSize: "clamp(0.65625rem, 0.12vw + 0.675rem, 0.84375rem)",
-              letterSpacing: "normal",
-            }}
+            className="reveal-bottom pb-4 text-[13px] font-semibold uppercase tracking-[0.1em] text-[#8c8c8c] lg:pb-5"
           >
             Recent work
           </p>
@@ -677,12 +532,7 @@ export default function AboutWork() {
                 {row.name}
               </h3>
               <span
-                className="text-black/70 group-hover:text-[#a0a0a0] group-hover:-translate-x-2 transition-all duration-300"
-                style={{
-                  fontFamily: "var(--font-helv)",
-                  fontSize: "clamp(1.051875rem, 0.306vw + 0.9486rem, 1.243125rem)",
-                  fontWeight: 300,
-                }}
+                className="text-[17px] font-normal text-[#1d1d1f] transition-all duration-300 group-hover:-translate-x-2 group-hover:text-[#a0a0a0]"
               >
                 {row.tag}
               </span>

@@ -92,11 +92,14 @@ const BLURB_ACCENT_STYLE: React.CSSProperties = {
  * like "brand identities" stays a single accented run. Each match is
  * reduced to the index range of the words it covers.
  */
-function splitWithAccents(text: string, accents: string[] = []) {
+function splitWithAccents(
+  text: string,
+  accents: string[] | null | undefined = [],
+) {
   const words = text.split(/\s+/).filter(Boolean);
   const accented = new Set<number>();
 
-  for (const phrase of accents) {
+  for (const phrase of accents ?? []) {
     const needle = phrase.trim();
     if (!needle) continue;
     const start = text.indexOf(needle);

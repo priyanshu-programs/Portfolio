@@ -98,6 +98,52 @@ export const about = defineType({
         "Each slot pairs one photo with the blurb beside it. Positions and sizes are fixed by the layout: slot 1 sits right with its blurb to the left, slot 2 sits left with its blurb to the right, slot 3 repeats slot 1.",
     }),
     defineField({
+      name: "achievements",
+      title: "Achievements & Credentials",
+      type: "array",
+      group: "content",
+      of: [
+        defineArrayMember({
+          type: "object",
+          name: "achievementItem",
+          title: "Achievement Item",
+          fields: [
+            defineField({ name: "title", title: "Title", type: "string" }),
+            defineField({ name: "description", title: "Description", type: "text", rows: 4 }),
+            defineField({
+              name: "badge",
+              title: "Badge Icon",
+              type: "image",
+              options: { hotspot: true },
+            }),
+            defineField({
+              name: "image",
+              title: "Main Image / Certificate",
+              type: "image",
+              options: { hotspot: true },
+            }),
+            defineField({ name: "alt", title: "Alt Text", type: "string" }),
+            defineField({
+              name: "hidden",
+              title: "Hide this item",
+              type: "boolean",
+              description:
+                "Turn on to hide this achievement from the About page without deleting it.",
+              initialValue: false,
+            }),
+          ],
+          preview: {
+            select: { title: "title", subtitle: "description", media: "image", hidden: "hidden" },
+            prepare: ({ title, subtitle, media, hidden }) => ({
+              title: hidden ? `${title} — hidden` : title,
+              subtitle,
+              media,
+            }),
+          },
+        }),
+      ],
+    }),
+    defineField({
       name: "socials",
       title: "Social Links",
       type: "array",

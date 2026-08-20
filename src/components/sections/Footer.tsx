@@ -23,7 +23,12 @@ const DEFAULT_NAME = "Priyanshu Roy";
 
 export default function Footer() {
   const settings = useSiteContent()?.settings;
-  const navLinks = settings?.navLinks?.length ? settings.navLinks : NAV_LINKS;
+  const navLinks = (settings?.navLinks?.length ? settings.navLinks : NAV_LINKS).map(
+    (link) =>
+      link.label.trim().toLowerCase() === "contact"
+        ? { ...link, href: "/contact" }
+        : link,
+  );
   const socials = settings?.socials?.length ? settings.socials : SOCIALS;
   const timezone = settings?.timezone ?? DEFAULT_TIMEZONE;
   const email = settings?.email ?? DEFAULT_EMAIL;

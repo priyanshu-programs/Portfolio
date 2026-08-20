@@ -5,7 +5,7 @@
  */
 export const siteContentQuery = /* groq */ `{
   "settings": *[_type == "siteSettings"][0]{
-    name, email, timezone, seoTitle, seoDescription,
+    name, email, phone, timezone, seoTitle, seoDescription,
     navColor, navBlend,
     socials[]{ label, href },
     navLinks[]{ label, href }
@@ -20,8 +20,15 @@ export const siteContentQuery = /* groq */ `{
     title,
     paragraphs[]{ text, accents },
     slots[]{ image, alt, blurb{ text, accents } },
+    achievements[]{ title, description, badge, image, alt, hidden },
     socials[]{ label, href },
     email, seoTitle, seoDescription
+  },
+  "contact": *[_type == "contact"][0]{
+    heading, successHeading, successBody, submitLabel, submitPendingLabel,
+    profileImage, showBackgroundGradient,
+    socials[]{ label, href },
+    email, phone, seoTitle, seoDescription
   },
   "services": *[_type == "services"][0]{
     heading, ornament, landscape,
