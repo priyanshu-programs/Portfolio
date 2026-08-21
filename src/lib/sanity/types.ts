@@ -18,6 +18,7 @@ export interface SocialLink {
 export interface SiteSettings {
   name?: string;
   email?: string;
+  phone?: string;
   timezone?: string;
   socials?: SocialLink[];
   navLinks?: NavLink[];
@@ -66,15 +67,44 @@ export interface AboutSlot {
   blurb?: AboutParagraph;
 }
 
+export interface AchievementItem {
+  title?: string;
+  description?: string;
+  badge?: string;
+  image?: string;
+  alt?: string;
+  hidden?: boolean;
+}
+
 /** The /about route. Distinct from `aboutWork`, which is the home page section. */
 export interface AboutContent {
   title?: string;
   paragraphs?: AboutParagraph[];
   /** Ordered photo slots; the layout renders at most three. */
   slots?: AboutSlot[];
+  achievements?: AchievementItem[];
   socials?: SocialLink[];
   /** Falls back to `settings.email`. */
   email?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+}
+
+/** The /contact route. */
+export interface ContactContent {
+  heading?: string;
+  successHeading?: string;
+  successBody?: string;
+  submitLabel?: string;
+  submitPendingLabel?: string;
+  profileImage?: string;
+  /** Toggles the animated Bloom Field mesh-gradient backdrop. Defaults to off. */
+  showBackgroundGradient?: boolean;
+  socials?: SocialLink[];
+  /** Falls back to `settings.email`. */
+  email?: string;
+  /** Falls back to `settings.phone`. */
+  phone?: string;
   seoTitle?: string;
   seoDescription?: string;
 }
@@ -211,6 +241,7 @@ export interface SiteContent {
   hero?: HeroContent;
   aboutWork?: AboutWorkContent;
   about?: AboutContent;
+  contact?: ContactContent;
   services?: ServicesContent;
   cta?: CtaContent;
   floatingMenu?: FloatingMenuContent;

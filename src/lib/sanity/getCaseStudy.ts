@@ -1,9 +1,21 @@
 import "server-only";
 import { cache } from "react";
-import { sanityClient } from "./client";
+import { sanityClient, warnUnconfigured } from "./client";
 import { caseStudyBySlugQuery, workSlugsQuery } from "./queries";
 import { buildImageUrl } from "./image";
 import type { CaseStudyContent, GalleryItem, ProjectRef } from "./types";
+
+/**
+ * Tighter than getSiteContent's 8s, deliberately.
+ *
+ * `dynamicParams` is true, so a slug published since the last deploy renders on
+ * demand — and because that render happens inside an already-started view
+ * transition, the reader is watching a held frame of the previous page for its
+ * whole duration. Untimed, that wait was unbounded (measured at 8.5s against a
+ * cold miss). A Sanity CDN query that hasn't answered in 2.5s is not going to
+ * rescue the navigation; failing through to notFound() is the better outcome.
+ */
+const CASE_STUDY_FETCH_TIMEOUT_MS = 2_500;
 
 /**
  * Server-only fetch of a single case study, mirroring getSiteContent: images
@@ -16,13 +28,19 @@ import type { CaseStudyContent, GalleryItem, ProjectRef } from "./types";
  */
 export const getCaseStudy = cache(
   async (slug: string): Promise<CaseStudyContent | null> => {
-    if (!sanityClient) return null;
+    if (!sanityClient) {
+      warnUnconfigured(`getCaseStudy(${slug})`);
+      return null;
+    }
 
     try {
       const raw = await sanityClient.fetch<RawResult>(
         caseStudyBySlugQuery,
         { slug },
-        { next: { tags: ["site-content"], revalidate: 60 } }
+        {
+          next: { tags: ["site-content"], revalidate: 60 },
+          signal: AbortSignal.timeout(CASE_STUDY_FETCH_TIMEOUT_MS),
+        }
       );
 
       if (!raw?.project) return null;
@@ -34,9 +52,20 @@ export const getCaseStudy = cache(
   }
 );
 
-/** Slugs for generateStaticParams. Empty array when Sanity isn't configured. */
+/**
+ * Slugs for generateStaticParams. Empty array when Sanity isn't configured.
+ *
+ * Deliberately untimed, unlike getCaseStudy above. This runs only at build
+ * time with nobody waiting on a frame, and its catch returns [] — so a
+ * timeout here would not degrade gracefully, it would ship a deploy with zero
+ * prerendered case studies and push every one of them onto the on-demand path.
+ * Waiting is the correct behaviour when the cost of giving up is that high.
+ */
 export const getWorkSlugs = cache(async (): Promise<string[]> => {
-  if (!sanityClient) return [];
+  if (!sanityClient) {
+    warnUnconfigured("getWorkSlugs");
+    return [];
+  }
 
   try {
     const slugs = await sanityClient.fetch<(string | null)[]>(

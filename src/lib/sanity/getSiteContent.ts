@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { sanityClient } from "./client";
+import { sanityClient, warnUnconfigured } from "./client";
 import { siteContentQuery } from "./queries";
 import { buildImageUrl } from "./image";
 import type {
@@ -27,7 +27,10 @@ import type {
 const SANITY_FETCH_TIMEOUT_MS = 8_000;
 
 export const getSiteContent = cache(async (): Promise<SiteContent | null> => {
-  if (!sanityClient) return null;
+  if (!sanityClient) {
+    warnUnconfigured("getSiteContent");
+    return null;
+  }
 
   try {
     // Classic (non-Cache-Components) revalidation: tagged for on-demand
@@ -73,8 +76,30 @@ interface RawSiteContent {
       alt?: string;
       blurb?: AboutParagraph;
     }[];
+    achievements?: {
+      title?: string;
+      description?: string;
+      badge?: unknown;
+      image?: unknown;
+      alt?: string;
+      hidden?: boolean;
+    }[];
     socials?: SocialLink[];
     email?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+  } | null;
+  contact?: {
+    heading?: string;
+    successHeading?: string;
+    successBody?: string;
+    submitLabel?: string;
+    submitPendingLabel?: string;
+    profileImage?: unknown;
+    showBackgroundGradient?: boolean;
+    socials?: SocialLink[];
+    email?: string;
+    phone?: string;
     seoTitle?: string;
     seoDescription?: string;
   } | null;
@@ -94,13 +119,21 @@ interface RawSiteContent {
     twoHands?: unknown;
   } | null;
   floatingMenu?: { tags?: string[]; image?: unknown } | null;
-  workProjects?: (Omit<WorkProject, "thumbnail"> & {
+  /**
+   * `tags[]->` yields `null` for any entry whose reference doesn't resolve — a
+   * dangling `_ref`, or a value that was never a reference at all. Typing the
+   * elements as non-null `Tag` is what let a crash reach the browser: the
+   * optional chain in a consumer's `project.tags?.some(t => t.slug)` guards the
+   * array, not its contents. Normalize strips them; the type says so.
+   */
+  workProjects?: (Omit<WorkProject, "thumbnail" | "tags"> & {
     thumbnail?: unknown;
+    tags?: (Tag | null)[] | null;
   })[] | null;
   homeWork?: (Omit<WorkProject, "thumbnail"> & {
     thumbnail?: unknown;
   })[] | null;
-  tags?: Tag[] | null;
+  tags?: (Tag | null)[] | null;
 }
 
 function normalize(raw: RawSiteContent): SiteContent {
@@ -131,10 +164,34 @@ function normalize(raw: RawSiteContent): SiteContent {
               })
             )
             .filter((slot) => Boolean(slot.image)),
+          achievements: raw.about.achievements?.map((item) => ({
+            title: item.title,
+            description: item.description,
+            badge: buildImageUrl(item.badge, 300, { compress: false }),
+            image: buildImageUrl(item.image, 1200, { compress: false }),
+            alt: item.alt,
+            hidden: item.hidden,
+          })),
           socials: raw.about.socials,
           email: raw.about.email,
           seoTitle: raw.about.seoTitle,
           seoDescription: raw.about.seoDescription,
+        }
+      : undefined,
+    contact: raw.contact
+      ? {
+          heading: raw.contact.heading,
+          successHeading: raw.contact.successHeading,
+          successBody: raw.contact.successBody,
+          submitLabel: raw.contact.submitLabel,
+          submitPendingLabel: raw.contact.submitPendingLabel,
+          profileImage: buildImageUrl(raw.contact.profileImage, 400),
+          showBackgroundGradient: raw.contact.showBackgroundGradient,
+          socials: raw.contact.socials,
+          email: raw.contact.email,
+          phone: raw.contact.phone,
+          seoTitle: raw.contact.seoTitle,
+          seoDescription: raw.contact.seoDescription,
         }
       : undefined,
     services: raw.services
@@ -166,8 +223,14 @@ function normalize(raw: RawSiteContent): SiteContent {
       : undefined,
     // hoverImage is served wider than the thumbnail: its 352px window still has
     // to stay sharp on 3x displays.
+    //
+    // Unresolved tags are dropped for the same reason blank gallery slides and
+    // pictureless about-slots are: a null in the array is not a tag the filter
+    // pills can do anything with, and every consumer would otherwise have to
+    // remember to guard each element.
     workProjects: raw.workProjects?.map((p) => ({
       ...p,
+      tags: p.tags?.filter((t): t is Tag => Boolean(t)),
       thumbnail: buildImageUrl(p.thumbnail, 900),
       hoverImage: buildImageUrl(p.hoverImage, 1200),
     })),
@@ -176,6 +239,6 @@ function normalize(raw: RawSiteContent): SiteContent {
       thumbnail: buildImageUrl(p.thumbnail, 900),
       hoverImage: buildImageUrl(p.hoverImage, 1200),
     })),
-    tags: raw.tags ?? undefined,
+    tags: raw.tags?.filter((t): t is Tag => Boolean(t)),
   };
 }

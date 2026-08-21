@@ -8,7 +8,7 @@ const NAV_LINKS = [
   { label: "Work", href: "/work" },
   { label: "About", href: "/about" },
   { label: "Services", href: "/#services" },
-  { label: "Contact", href: "/#contact" },
+  { label: "Contact", href: "/contact" },
 ];
 
 const SOCIALS = [
@@ -23,7 +23,12 @@ const DEFAULT_NAME = "Priyanshu Roy";
 
 export default function Footer() {
   const settings = useSiteContent()?.settings;
-  const navLinks = settings?.navLinks?.length ? settings.navLinks : NAV_LINKS;
+  const navLinks = (settings?.navLinks?.length ? settings.navLinks : NAV_LINKS).map(
+    (link) =>
+      link.label.trim().toLowerCase() === "contact"
+        ? { ...link, href: "/contact" }
+        : link,
+  );
   const socials = settings?.socials?.length ? settings.socials : SOCIALS;
   const timezone = settings?.timezone ?? DEFAULT_TIMEZONE;
   const email = settings?.email ?? DEFAULT_EMAIL;

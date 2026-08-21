@@ -47,3 +47,6 @@ next-env.d.ts
 
 # local reference/scraped material (not part of the app)
 zajno-*
+
+# scratch/test scripts
+*.tmp

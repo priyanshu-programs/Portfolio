@@ -12,10 +12,10 @@ const DEFAULT_NAME = "Priyanshu Roy";
 const DEFAULT_EMAIL = "priyanshuroy.official19@gmail.com";
 
 const MENU_LINKS = [
-  { label: "Home", href: "/" },
+  { label: "Home", href: "/", image: "/images/menu-home.webp" },
   { label: "Work", href: "/work", image: "/images/menu-work.webp" },
   { label: "About", href: "/about", image: "/images/menu-about.webp" },
-  { label: "Contact", href: "/#contact", image: "/images/menu-contact.webp" },
+  { label: "Contact", href: "/contact", image: "/images/menu-contact.webp" },
 ];
 
 const MENU_TAGS = ["Identity", "Visualisation", "Interactive"];
@@ -41,7 +41,13 @@ export default function FloatingMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   const hoveredLink = MENU_LINKS.find((item) => item.label === hoveredLabel);
-  const activeImage = hoveredLink?.image ?? menuImage;
+  const pathname = usePathname();
+  const activeLink = MENU_LINKS.find((item) => {
+    if (!pathname) return false;
+    if (item.href === "/") return pathname === "/";
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  });
+  const activeImage = hoveredLink?.image ?? activeLink?.image ?? menuImage;
 
   const [imageQueue, setImageQueue] = useState<{ id: string; src: string }[]>([
     { id: activeImage, src: activeImage },
@@ -61,7 +67,6 @@ export default function FloatingMenu() {
       return prev;
     });
   }, []);
-  const pathname = usePathname();
   const overlayRef = useRef<HTMLDivElement>(null);
   const overlayContentRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
@@ -331,7 +336,7 @@ export default function FloatingMenu() {
                 <nav aria-label="Main menu">
                   <ul className="space-y-1">
                     {MENU_LINKS.map((item) => {
-                      const isActive = item.label !== "Home" && (pathname === item.href || pathname === item.href.replace("/#", "#"));
+                      const isActive = activeLink?.href === item.href;
                       return (
                         <li key={item.label}>
                           <RevealLine>
@@ -391,7 +396,7 @@ export default function FloatingMenu() {
       >
         <div className={`hidden md:block transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           <Link
-            href="/#contact"
+            href="/contact"
             onClick={() => closeMenu()}
             className="flex h-[56px] md:h-[60px] items-center justify-center rounded-full border border-white/20 px-8 text-[15px] text-white transition-all hover:scale-105"
           >

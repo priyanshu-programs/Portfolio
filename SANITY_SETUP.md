@@ -54,6 +54,51 @@ No credentials needed — read access to content is public.
 
 ---
 
+## Deploying
+
+`.env.local` is git-ignored, so **nothing in this repo carries your Sanity
+credentials to the host.** They have to be entered in the hosting dashboard by
+hand. On Vercel: **Settings → Environment Variables**, each one ticked for
+**Production** (and Preview, if you want branch deploys to render content):
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_SANITY_PROJECT_ID` | `i0fv16h3` |
+| `NEXT_PUBLIC_SANITY_DATASET` | `production` |
+| `NEXT_PUBLIC_SANITY_API_VERSION` | `2025-01-01` |
+| `SANITY_REVALIDATE_SECRET` | same value as in `.env.local` |
+
+`SANITY_API_TOKEN` is **not** needed on the host — it's only used by the
+`scripts/sanity/*` tooling, which runs locally.
+
+> ### ⚠ Env vars are baked in at build time — changing one needs a redeploy
+>
+> `NEXT_PUBLIC_*` values are inlined into the bundle by `next build`, and
+> `/work` is prerendered to static HTML during that build. Adding a variable in
+> the dashboard afterwards does **not** change the deployment already serving —
+> the empty page is frozen in. Always follow an env var change with
+> **Deployments → ⋯ → Redeploy**, with *"Use existing Build Cache"* unchecked.
+>
+> **Symptom of getting this wrong:** `/work` shows its headline and filter pills
+> but lists no projects, every `/work/<slug>` case study 404s (nothing was
+> prerendered because `getWorkSlugs()` returned an empty array), and CMS images
+> are missing site-wide. Meanwhile `/` and `/about` look completely normal,
+> because those pages fall back to hardcoded content and `/work` deliberately
+> does not.
+>
+> A build missing `NEXT_PUBLIC_SANITY_PROJECT_ID` now **fails loudly** rather
+> than shipping that empty page (see `src/lib/sanity/client.ts`). If a fetch
+> fails for some other reason the build still succeeds, so also check the build
+> log for lines starting `[sanity]`.
+
+**CORS is not involved in any of this.** All content reads happen server-side
+(`import "server-only"`), so the browser never calls Sanity and the CORS origins
+list has no bearing on whether the deployed site renders content. Likewise, the
+hosted Studio is a separate deployment — it working tells you nothing about
+whether the site can read the dataset.
+
+---
+
 ## Editing content
 
 ### Run the Studio locally

@@ -7,7 +7,9 @@
  *  - Sanity image assets are content-addressed, so re-uploading a file returns
  *    the same asset id.
  *  - Singletons use fixed _ids (their schema name) via createOrReplace.
- *  - Work projects use deterministic _ids (workProject-01…), also createOrReplace.
+ *
+ * Seeds singletons only. Work projects are authored in the Studio and are never
+ * written from here — see the note above `docs` for why.
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -35,23 +37,6 @@ async function uploadLocal(file: string): Promise<ImageRef> {
   return imageRef(asset._id);
 }
 
-async function uploadRemote(
-  url: string,
-  filename: string
-): Promise<ImageRef | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    const asset = await client.assets.upload("image", buf, { filename });
-    console.log(`  ↑ ${filename} (remote) → ${asset._id}`);
-    return imageRef(asset._id);
-  } catch (e) {
-    console.warn(`  ⚠ skipped ${filename} (${url}): ${(e as Error).message}`);
-    return null;
-  }
-}
-
 async function main() {
   client = getWriteClient();
 
@@ -72,7 +57,7 @@ async function main() {
     handRight,
     twoHands,
   ] = await Promise.all([
-    uploadLocal("hero-portrait.png"),
+    uploadLocal("hero-portrait.webp"),
     uploadLocal("ornament-1.jpg"),
     uploadLocal("ornament-2.png"),
     uploadLocal("about.png"),
@@ -88,23 +73,6 @@ async function main() {
     uploadLocal("cta-2hands.png"),
   ]);
 
-  // Work project thumbnails/covers/gallery currently reuse remote Unsplash
-  // placeholders; pull them into Sanity so the seeded site renders identically.
-  console.log("Uploading recent-work placeholder images…");
-  const recentWorkUrls = [
-    "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=640&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=640&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=640&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=640&auto=format&fit=crop",
-  ];
-  const recentWorkRaw = await Promise.all(
-    recentWorkUrls.map((url, i) => uploadRemote(url, `recent-work-${i + 1}.jpg`))
-  );
-  // Any placeholder that 404'd falls back to a working one (or the portrait as
-  // a last resort) so every popout row still has a valid image.
-  const firstOkRecent = recentWorkRaw.find(Boolean) ?? heroPortrait;
-  const recentWorkImages = recentWorkRaw.map((img) => img ?? firstOkRecent);
-
   console.log("Writing documents…");
   const singletons = [
     {
@@ -112,6 +80,7 @@ async function main() {
       _type: "siteSettings",
       name: "Priyanshu Roy",
       email: "priyanshuroy.official19@gmail.com",
+      phone: "+91 80746 65471",
       timezone: "IST — UTC +5:30",
       socials: [
         { _key: "instagram", label: "Instagram", href: "#" },
@@ -160,11 +129,6 @@ async function main() {
           text: "I design brand identities and build the websites that carry them, so the two arrive as one piece of work rather than a handoff.",
           accents: ["brand identities"],
         },
-        {
-          _key: "para2",
-          text: "Most sites look like templates because identity and execution were decided by different people at different times. I work at the point where they become the same decision.",
-          accents: ["identity and execution"],
-        },
       ],
       // Each slot pairs its photo with the blurb set beside it.
       slots: [
@@ -211,6 +175,15 @@ async function main() {
         "Brand identity and web development, made together.",
     },
     {
+      _id: "contact",
+      _type: "contact",
+      heading: "Let's start a project together",
+      successHeading: "Got it.",
+      successBody: "I'll come back to you shortly. If it's easier, pick a time now.",
+      submitLabel: "Send it!",
+      submitPendingLabel: "Sending",
+    },
+    {
       _id: "services",
       _type: "services",
       // heading intentionally left empty → the component keeps its rich,
@@ -250,121 +223,26 @@ async function main() {
     },
   ];
 
-  /** Gallery slides reuse the recent-work placeholders until real shots exist. */
-  const gallerySlides = (caption: string[]) =>
-    caption.map((text, i) => ({
-      _key: `slide${i + 1}`,
-      image: recentWorkImages[i % recentWorkImages.length],
-      caption: text,
-    }));
-
-  const workProjects = [
-    // Thumbnails and covers reuse the recent-work placeholders above until real
-    // project shots exist; bgColor shows while the image loads.
-    //
-    // pageBg is deliberately varied: TWICE is dark, AETHER warm light, and
-    // NURA HEALTH leaves it empty to exercise the cream fallback.
-    //
-    // textColor/navColor are left unset everywhere so the derived-ink path is
-    // what the seeded site exercises. Set either in the Studio to override it.
-    {
-      _id: "workProject-01",
-      _type: "workProject",
-      order: 1,
-      visible: true,
-      pinnedHome: true,
-      id: "01",
-      title: "TWICE",
-      slug: { _type: "slug", current: "twice" },
-      category: "Interaction & Development",
-      services: "Design + Development",
-      year: "2026",
-      tags: ["development", "interaction"],
-      bgColor: "#F1F1F1",
-      thumbnail: recentWorkImages[0],
-      cover: recentWorkImages[0],
-      pageBg: "#1E1C28",
-      accent: "#7BE0AD",
-      summary: "TWICE — an interaction-led storefront built for momentum.",
-      liveUrl: "https://example.com",
-      challenge: [
-        "The existing storefront treated every product the same way, so the pieces that deserved attention got none of it.",
-        "Anything we added had to survive a slow connection — the audience browses on mobile, mid-commute.",
-      ],
-      approach: [
-        "We rebuilt the browse experience around a single scroll narrative, letting each product arrive on its own terms.",
-        "Motion is used sparingly and always tied to intent, so the page still reads clearly with animation switched off.",
-      ],
-      galleryHeading: "Pixels with Purpose",
-      gallerySubheading:
-        "Explore the screens that bring the experience to life.",
-      gallery: gallerySlides([
-        "Landing — the scroll narrative opens",
-        "Product detail with pinned specs",
-        "Cart and checkout in one pass",
-      ]),
-    },
-    {
-      _id: "workProject-02",
-      _type: "workProject",
-      order: 2,
-      visible: true,
-      pinnedHome: true,
-      id: "02",
-      title: "AETHER",
-      slug: { _type: "slug", current: "aether" },
-      category: "Brand Identity & Web",
-      services: "Brand + Web",
-      year: "2025",
-      tags: ["design", "development"],
-      bgColor: "#E0D9D1",
-      thumbnail: recentWorkImages[1],
-      cover: recentWorkImages[1],
-      pageBg: "#F4EFEA",
-      summary: "AETHER — an identity system that holds up at every size.",
-      challenge: [
-        "AETHER had a logo and little else: no type scale, no colour rules, and no guidance for the team shipping pages weekly.",
-      ],
-      approach: [
-        "We built the identity as a small set of decisions rather than a document — a type scale, four colours, and one spacing rhythm.",
-        "The site then became the reference implementation, so the rules are visible in the product instead of a PDF.",
-      ],
-      gallerySubheading: "Identity applied across the marketing surface.",
-      gallery: gallerySlides([
-        "Type scale in use",
-        "Colour applied to editorial layouts",
-      ]),
-    },
-    {
-      _id: "workProject-03",
-      _type: "workProject",
-      order: 3,
-      visible: true,
-      pinnedHome: true,
-      id: "03",
-      title: "NURA HEALTH",
-      slug: { _type: "slug", current: "nura-health" },
-      category: "Fullstack Architecture",
-      services: "Architecture + Development",
-      year: "2025",
-      tags: ["development"],
-      bgColor: "#48494A",
-      thumbnail: recentWorkImages[2],
-      cover: recentWorkImages[2],
-      // pageBg intentionally omitted → falls back to the default cream.
-      summary: "NURA HEALTH — clinical data made legible under load.",
-      challenge: [
-        "Clinicians were reading patient history across four systems, and the handover notes lived in a fifth.",
-      ],
-      approach: [
-        "One timeline, one source of truth, and a summary that answers the first question a clinician actually asks.",
-      ],
-      gallery: gallerySlides(["Patient timeline", "Handover summary"]),
-    },
-  ];
-
+  // NOTE: this seed deliberately creates NO work projects.
+  //
+  // It used to write three invented case studies (TWICE, AETHER, NURA HEALTH)
+  // with stock photography and fabricated copy. They were never the site
+  // owner's work, but they were the only projects in the dataset, so they were
+  // what /work and the home page actually displayed — and because the seed is
+  // createOrReplace, every re-run resurrected them.
+  //
+  // They also carried `tags: ["development", ...]` as plain strings while the
+  // schema declares tags as an array of *references*. Sanity stored the
+  // strings; `tags[]->` then dereferenced each to null, which crashed /work
+  // with "Cannot read properties of null (reading 'slug')".
+  //
+  // Real projects are authored in the Studio. If you ever reintroduce seeded
+  // projects here, tags must be written as references, never strings:
+  //   tags: [{ _type: "reference", _key: "t1", _ref: "<tag document _id>" }]
+  // (`floatingMenu.tags` above is a different field — a plain array of string —
+  // and is correct as it stands.)
   const docs: Array<Record<string, unknown> & { _id: string; _type: string }> =
-    [...singletons, ...workProjects];
+    singletons;
   const tx = client.transaction();
   for (const doc of docs) {
     tx.createOrReplace(doc);

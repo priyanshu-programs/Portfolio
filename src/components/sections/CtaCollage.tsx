@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import CtaConversation from "./CtaConversation";
 import { useSiteContent } from "@/components/ContentProvider";
+import Link from "@/components/transition/SmartLink";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -60,7 +61,6 @@ const Reveal = ({ children }: { children: string }) => (
 const DEFAULT_HEADLINE = "no more forgettable work";
 const DEFAULT_REVEAL_HEADLINE = "Good work starts with a conversation.";
 const DEFAULT_LINK_TEXT = "Let's have one.";
-const DEFAULT_EMAIL = "priyanshuroy.official19@gmail.com";
 
 export default function CtaCollage() {
   const content = useSiteContent();
@@ -71,7 +71,6 @@ export default function CtaCollage() {
   const headline = cta?.headline ?? DEFAULT_HEADLINE;
   const revealHeadline = cta?.revealHeadline ?? DEFAULT_REVEAL_HEADLINE;
   const linkText = cta?.linkText ?? DEFAULT_LINK_TEXT;
-  const email = content?.settings?.email ?? DEFAULT_EMAIL;
 
   const containerRef = useRef<HTMLElement>(null);
   const imagesDesktopRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -327,13 +326,13 @@ export default function CtaCollage() {
           style={{ fontSize: "clamp(26px, 4.6vw, 43px)" }}
         >
           <Reveal>{revealHeadline}</Reveal>{" "}
-          <a
-            href={`mailto:${email}`}
+          <Link
+            href="/contact"
             className="relative inline-block italic hover:opacity-70 transition-opacity group"
           >
             <Reveal>{linkText}</Reveal>
             <span className="cta-underline absolute bottom-[-4px] left-0 w-full h-[2px] bg-white origin-left scale-x-0 will-change-transform" />
-          </a>
+          </Link>
         </h2>
       </div>
 
