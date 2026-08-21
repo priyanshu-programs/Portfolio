@@ -1,5 +1,4 @@
 import { Hanken_Grotesk } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { ViewTransitions } from "next-view-transitions";
 import SmoothScroll from "@/components/SmoothScroll";
@@ -66,25 +65,40 @@ export default async function RootLayout({
           suppressHydrationWarning
         >
           {/*
-            Pre-paint gate for the home intro. Keep this as a `beforeInteractive`
-            script so it is scheduled before hydration and runs before the intro
-            can paint.
+            Pre-paint gate for the home intro. This MUST stay a raw <script>
+            tag. Do not "modernize" it back to next/script.
 
-            Why not a hand-written <head>: Next owns <head> through the Metadata
-            API (this layout uses generateMetadata), and the layout docs
-            explicitly warn against adding one. First-child-of-<body> is just as
-            early, because the render-blocking stylesheet in <head> is already
-            applied by the time the parser gets here.
+            It was a `<Script strategy="beforeInteractive">` and that is exactly
+            why the page flashed. Next does not emit that as an executable
+            inline script — it compiles it into a deferred queue entry:
+
+              <script>(self.__next_s=self.__next_s||[]).push([0,{"children":"..."}])</script>
+
+            That is a push onto an array with the code as a *string*. It runs
+            only once the Next runtime bundle boots and drains __next_s, i.e.
+            around hydration — precisely the moment this gate exists to
+            pre-empt. So `intro-armed` landed after the browser had already
+            painted the finished white homepage.
+
+            `beforeInteractive` guarantees ordering relative to Next's own
+            modules ("downloaded before any Next.js module", "does not block
+            page hydration"). It is not a pre-paint guarantee. A plain <script>
+            rendered by a Server Component goes into the HTML verbatim and the
+            parser executes it synchronously, blocking until it returns.
+
+            Why first-child-of-<body> and not a hand-written <head>: Next owns
+            <head> through the Metadata API (this layout uses generateMetadata)
+            and the layout docs warn against adding one. This position is just
+            as early — the render-blocking stylesheet in <head> is already
+            applied by the time the parser reaches here, and .landing-intro-stage
+            is not parsed until further down the body.
 
             No nonce: next.config.ts sends no `script-src`. If a real CSP is
             ever added there, this script needs the nonce or the intro gate
             silently stops working and the flash comes back.
           */}
-          <Script
-            id="landing-intro-arm"
-            strategy="beforeInteractive"
-            dangerouslySetInnerHTML={{ __html: ARM_SCRIPT }}
-          />
+          {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+          <script dangerouslySetInnerHTML={{ __html: ARM_SCRIPT }} />
           <ContentProvider value={content}>
             <SmoothScroll>
               {children}

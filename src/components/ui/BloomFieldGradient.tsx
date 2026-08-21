@@ -62,6 +62,25 @@ interface BlobDef {
   p1: number;
   p2: number;
   /**
+   * Per-blob angular frequencies (rad/s) for the x and y drift axes.
+   *
+   * These MUST differ between blobs. Every blob previously shared one pair
+   * (0.55/0.43) with only `p1`/`p2` distinguishing them, which means they shared
+   * a period: phase offsets shift *when* each blob reaches a given point, not how
+   * often, so the whole field re-converged on a fixed cycle and the three blue
+   * blobs periodically stacked into one mass.
+   *
+   * The values below are mutually non-commensurate (no pair is a simple ratio),
+   * so the combined field has no short repeat and the blobs never re-sync.
+   */
+  f1: number;
+  f2: number;
+  /**
+   * Per-blob multiplier on the shared `AMP` travel. The dominant white wash can
+   * range further than the blue blobs without ever reading as a blue mass.
+   */
+  amp: number;
+  /**
    * Multiplier on the shared `ALPHA` ramp, per blob. Lets a blob be muted
    * without touching its radius/position — used to cut the blue blobs'
    * presence so the gray blob reads as dominant instead of a 1:3 gray:blue mix.
@@ -91,6 +110,9 @@ const BLOBS: BlobDef[] = [
     lastStop: 76.1,
     p1: stablePhase(SEED, 0),
     p2: stablePhase(SEED, 1),
+    f1: 0.23,
+    f2: 0.17,
+    amp: 1.2,
     alphaScale: 1,
   },
   {
@@ -101,6 +123,9 @@ const BLOBS: BlobDef[] = [
     lastStop: 51.6,
     p1: stablePhase(SEED, 2),
     p2: stablePhase(SEED, 3),
+    f1: 0.19,
+    f2: 0.29,
+    amp: 1,
     alphaScale: 0.234,
   },
   {
@@ -111,6 +136,9 @@ const BLOBS: BlobDef[] = [
     lastStop: 67,
     p1: stablePhase(SEED, 4),
     p2: stablePhase(SEED, 5),
+    f1: 0.31,
+    f2: 0.21,
+    amp: 1,
     alphaScale: 0.234,
   },
   {
@@ -121,6 +149,9 @@ const BLOBS: BlobDef[] = [
     lastStop: 41.1,
     p1: stablePhase(SEED, 6),
     p2: stablePhase(SEED, 7),
+    f1: 0.16,
+    f2: 0.27,
+    amp: 1,
     alphaScale: 0.322,
   },
 ];
@@ -142,6 +173,20 @@ const STOP_PCT = [0, 25, 50, 75, 100] as const;
  */
 const OVERSIZE = 40;
 const K = 1 + (2 * OVERSIZE) / 100;
+
+/**
+ * Shared drift amplitude, in percentage points of the parent box, before the
+ * per-blob `amp` multiplier.
+ *
+ * Halved from the original 14 (real travel ~28pt, see `blobOffset`) because that
+ * excursion was large against the anchor spacing — the closest pair of anchors,
+ * blobs 1 and 2, sit ~47pt apart, so 28pt of independent travel each could very
+ * nearly close the gap. At 7 (real travel ~14pt) any pair's approach is bounded
+ * well under half their separation, so the well-distributed static anchors stay
+ * dominant and the motion reads as breathing around a fixed position rather than
+ * a wander that can pile the blue blobs together.
+ */
+const AMP = 7;
 
 /** Noise SVG data URI (grain overlay) */
 const NOISE_SVG = `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.500'/></svg>")`;
@@ -180,23 +225,27 @@ function blobRadius(b: BlobDef, w: number, h: number): number {
 }
 
 /**
- * The drift, in percentage points of the parent's width/height. Unchanged from
- * the original per-frame builder — this is the whole of the motion, kept in one
- * pure function so it stays auditable against the version it replaced.
+ * The drift, in percentage points of the parent's width/height. `t` is elapsed
+ * SECONDS — the frequencies below are rad/s and only mean anything on that clock.
+ *
+ * Each blob drifts on its own frequency pair (`f1`/`f2`) rather than the single
+ * shared 0.55/0.43 this used to apply to all four. See the note on `BlobDef.f1`:
+ * a shared frequency pair gives the field one common period no matter how the
+ * phases differ, which is what let the three blue blobs periodically stack up.
  *
  * Both terms are exactly 0 at t=0, guaranteed by the `- sin(p)` term, so an
- * untouched transform is already the correct first frame.
+ * untouched transform is already the correct first frame. The reduced-motion
+ * path below depends on that.
  *
- * Note the range is NOT ±14: subtracting `sin(p)` shifts it, so real travel
- * reaches ~28 points in one direction (az30 dy bottoms out at -28.0). `OVERSIZE`
- * is sized against that, not against the 14.
+ * Note the range is NOT ±AMP: subtracting `sin(p)` shifts it, so real travel
+ * reaches ~2×AMP in one direction. `OVERSIZE` is sized against that — it has
+ * generous headroom now that AMP is 7, and is deliberately left at 40 since the
+ * extra area is fully-transparent flood region and costs nothing.
  */
 function blobOffset(b: BlobDef, t: number): { dx: number; dy: number } {
-  const ph = t * 1.0; // speed = 1.00
-  const amt = 1.0; // motionAmount = 1.00
   return {
-    dx: (Math.sin(ph * 0.55 + b.p1) - Math.sin(b.p1)) * 14 * amt,
-    dy: (Math.sin(ph * 0.43 + b.p2) - Math.sin(b.p2)) * 14 * amt,
+    dx: (Math.sin(t * b.f1 + b.p1) - Math.sin(b.p1)) * AMP * b.amp,
+    dy: (Math.sin(t * b.f2 + b.p2) - Math.sin(b.p2)) * AMP * b.amp,
   };
 }
 
@@ -258,7 +307,11 @@ export default function BloomFieldGradient({
 
     const tick = (time: number) => {
       if (start === null) start = time;
-      const t = time - start;
+      // gsap.ticker hands out MILLISECONDS. This used to pass that straight into
+      // blobOffset, whose frequencies are rad/s — so the drift ran ~1000x fast
+      // (~87Hz), aliased against the 60fps sample rate into a pseudo-random walk.
+      // That, not the frequency choice, is why the blobs used to clump.
+      const t = (time - start) / 1000;
       if (w === 0 || h === 0) return;
 
       for (let i = 0; i < BLOBS.length; i++) {
