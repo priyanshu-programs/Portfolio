@@ -194,12 +194,8 @@ export default function Hero() {
           gsap.set(frameRef.current, { clipPath: "inset(0% 0% 0% 0%)" });
           gsap.set(navRef.current, { y: 0, opacity: 1 });
           gsap.set(portraitRef.current, { y: 0, scale: 1, opacity: 1 });
-          gsap.set(navRef.current, { zIndex: 12001 });
-          gsap.set(marqueeWrapRef.current, { zIndex: 12001 });
           gsap.set(marqueeRevealRef.current, { y: 0, opacity: 1 });
-          gsap.set(pillRef.current, { zIndex: 12001 });
           gsap.set(pillRef.current, { x: 0, opacity: 1 });
-          gsap.set(introWrapRef.current, { zIndex: 12001 });
           gsap.set(introWrapRef.current, { y: 0, opacity: 1 });
           gsap.set(glowRef.current, { scale: 1, opacity: 0.3 });
           return;
@@ -265,6 +261,21 @@ export default function Hero() {
             0.2
           );
         }
+
+        // The elevated zIndex above was only needed to stay above the
+        // landing-intro stage during the handoff. Left in place, it's an
+        // inline style that permanently outranks FollowCursor's canvas
+        // (zIndex 10050), leaving the custom cursor invisible under the pill
+        // for the rest of the session. Clear it once the handoff has played.
+        tl.set(
+          [
+            navRef.current,
+            marqueeWrapRef.current,
+            pillRef.current,
+            introWrapRef.current,
+          ],
+          { clearProps: "zIndex" }
+        );
       };
 
       if (playIntroEntrance) {

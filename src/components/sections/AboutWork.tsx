@@ -43,6 +43,10 @@ const AboutMeButton = () => {
       <style>{`
         .about-btn-fx {
           filter: contrast(3);
+          border-radius: 9999px;
+          overflow: hidden;
+          padding: 12px;
+          margin: -12px;
         }
         .about-btn-box {
           --w: 200px;
