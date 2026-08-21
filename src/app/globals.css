@@ -22,6 +22,12 @@
 @theme {
   --color-cream: #fffcfa;
   --color-ink: #1d222e;
+  /* The value the hero nav's difference blend resolves to over cream
+     (#ffffff - #fffcfa). Flat-ink navs use this so every page's nav reads at
+     the same contrast, and therefore the same apparent weight, as the home
+     page. Deliberately not --color-ink: that soft, slightly blue near-black is
+     for body copy, and at 19.36px it reads visibly lighter than the hero. */
+  --color-nav-ink: #000305;
   --color-wine: #770000;
   --color-divider: #d7d7d8;
   --color-muted: #858ea3;
@@ -1063,4 +1069,137 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   syntax: "<length>";
   initial-value: 0px;
   inherits: false;
+}
+
+
+/* ── 404 "Out of Frame" ────────────────────────────────────
+   The numerals are no longer the subject. A single oversized `404` sits behind
+   the page as atmosphere, heavily blurred and dialled down to a ghost, and the
+   centred `(Out of Frame)` label carries the meaning instead.
+
+   Layout lives in Tailwind utilities on NotFoundStage; this block covers only
+   what utilities cannot express — the backdrop's blur/scale pairing and the
+   armed start states.
+
+   ── Why the armed states are duplicated here ────────────────────────────────
+   Every animated element declares its GSAP `from` state in CSS too. Without
+   that the element server-renders at its FINAL position, paints for a frame or
+   two, then gets snapped out of view when hydration runs NotFoundStage's
+   `gsap.set(...)` — a visible flash of the page arriving, leaving, and arriving
+   again. The CSS state matches the GSAP one exactly so the handoff is a no-op.
+
+   These are namespaced `.nf-*` rather than styling the shared `.reveal-inner`
+   directly: that class is also used by Hero, AboutStage, AboutWork,
+   ContactStage and CtaCollage, and arming it globally would leave their content
+   stuck off-screen wherever their own timelines do not run. */
+
+.nf-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* The vw term drives the size at every width; the floor guards very narrow
+     phones. At 46vw the numeral fills most of the viewport, which is what makes
+     it read as ground rather than as content. */
+  font-size: clamp(18rem, 46vw, 40rem);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 0.82;
+  /* Deliberately the literal, not var(--color-ink) (#1d222e). Same ink as /work
+     and DEFAULT_NAV_COLOR. */
+  color: #1d1d1f;
+  /* Opacity and blur are a pair, not independent dials. The numeral has to stay
+     legible as a `404` — softened, not dissolved — so the blur is light and the
+     alpha carries the recede instead. Pushing the blur up without dropping the
+     alpha turns it into a smudge; the reverse turns it into content. */
+  opacity: 0.13;
+  filter: blur(10px);
+  user-select: none;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform, filter;
+}
+
+/* Armed start state for the backdrop — see the block comment above. The blur is
+   heavier here so the entrance resolves *into* focus rather than fading in. */
+.nf-backdrop-armed {
+  opacity: 0;
+  filter: blur(22px);
+  transform: scale(1.06);
+}
+
+.nf-label {
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+}
+
+.nf-reveal-inner {
+  transform: translateY(110%);
+}
+
+.nf-sub {
+  transform: translateY(30px);
+  opacity: 0;
+}
+
+.nf-cta {
+  transform: translateY(24px);
+  opacity: 0;
+}
+
+/* The underlined text link, replacing the pearl button. Matches the secondary
+   link idiom already used on the case-study 404. */
+.nf-back {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: opacity 0.3s ease;
+}
+
+.nf-back:hover {
+  opacity: 0.7;
+}
+
+/* The case-study 404 is server-rendered with no GSAP to run the entrance, so it
+   opts out of every armed state and sits at rest. Applied alongside the armed
+   class rather than replacing it, so the two files can share markup. */
+.nf-static {
+  transform: none;
+  opacity: 1;
+  filter: blur(10px);
+}
+
+/* `.nf-static` on the backdrop must not cancel the blur that makes it a
+   backdrop — only the entrance's extra blur. This restates the rest state. */
+.nf-backdrop.nf-static {
+  opacity: 0.13;
+  filter: blur(10px);
+  transform: none;
+}
+
+/* `.nf-static` exists to strip GSAP's armed states for the JS-less case-study
+   404, but its blur is only correct for the backdrop numeral. The copy and CTA
+   are meant to read as sharp foreground content, not atmosphere, so this
+   cancels the inherited blur for them specifically. */
+.nf-sub.nf-static,
+.nf-cta.nf-static {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Neutralize every armed state so the page is legible even before the
+     effect's reduced-motion branch runs — and if JS never runs at all. */
+  .nf-reveal-inner,
+  .nf-sub,
+  .nf-cta {
+    transform: none;
+    opacity: 1;
+  }
+
+  .nf-backdrop,
+  .nf-backdrop-armed {
+    opacity: 0.13;
+    filter: blur(10px);
+    transform: none;
+  }
 }

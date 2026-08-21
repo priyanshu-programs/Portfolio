@@ -16,7 +16,7 @@ export default function ContactPage() {
       <main className="relative block">
         {/* Background is now the animated Bloom Field mesh gradient inside
             ContactStage — no solid bg-cream needed on the wrapper. */}
-        <div className="absolute inset-x-0 top-0 z-40 text-ink mix-blend-normal">
+        <div className="absolute inset-x-0 top-0 z-40 text-nav-ink mix-blend-normal">
           <TopNav name={name} variant="simple" blend={false} />
         </div>
 

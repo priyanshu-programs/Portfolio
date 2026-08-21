@@ -21,7 +21,7 @@ export default function AboutPage() {
         {/* The stage is cream at every breakpoint now, so the nav sits on a
             background that never changes. A difference blend here would invert
             it against nothing; flat ink is what stays legible. */}
-        <div className="absolute inset-x-0 top-0 z-40 text-ink mix-blend-normal">
+        <div className="absolute inset-x-0 top-0 z-40 text-nav-ink mix-blend-normal">
           <TopNav name={name} variant="simple" blend={false} />
         </div>
 
