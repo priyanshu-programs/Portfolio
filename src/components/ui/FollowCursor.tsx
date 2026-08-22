@@ -18,7 +18,9 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
   useEffect(() => {
     let canvas: HTMLCanvasElement;
     let context: CanvasRenderingContext2D | null;
-    let animationFrame: number;
+    let animationFrame = 0;
+    let running = false;
+    let lastFrameAt = 0;
     let width = window.innerWidth;
     let height = window.innerHeight;
     let cursor = { x: width / 2, y: height / 2 };
@@ -85,8 +87,11 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
       width = window.innerWidth;
       height = window.innerHeight;
       if (canvas) {
+        // Assigning width/height resets the 2D context and blanks the canvas, so
+        // the loop must repaint even if the cursor had already settled.
         canvas.width = width;
         canvas.height = height;
+        startLoop();
       }
     };
 
@@ -168,36 +173,62 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
     };
 
     let idleFrames = 0;
+    let forceFrames = 0;
     const IDLE_LIMIT = 30; // pause ~0.5s after the cursor + trail settle
+    // If the loop claims to be running but hasn't painted for this long, the
+    // pending rAF callback was silently dropped (OS sleep, minimize, bfcache) and
+    // will never fire. Treat it as dead and restart rather than blocking forever.
+    const STALL_MS = 1000;
 
     const loop = () => {
+      lastFrameAt = performance.now();
+
       const active = updateDot();
-      idleFrames = active ? 0 : idleFrames + 1;
+      // Always paint a couple of frames after a wake: the canvas backing store may
+      // have been purged while hidden, or blanked by a resize, and updateDot()
+      // reports "settled" immediately when the dot has already converged.
+      if (forceFrames > 0) forceFrames--;
+      idleFrames = active || forceFrames > 0 ? 0 : idleFrames + 1;
+
       if (idleFrames > IDLE_LIMIT) {
-        animationFrame = 0; // settled — stop until the next mouse move
+        // settled — stop until the next mouse move
+        running = false;
+        animationFrame = 0;
         return;
       }
       animationFrame = requestAnimationFrame(loop);
     };
 
     const startLoop = () => {
-      if (
-        animationFrame ||
-        prefersReducedMotion.matches ||
-        document.visibilityState !== 'visible'
-      ) {
+      if (prefersReducedMotion.matches || document.visibilityState !== 'visible') {
         return;
       }
+      if (running) {
+        if (performance.now() - lastFrameAt < STALL_MS) return; // genuinely running
+        // Stalled: drop the phantom frame id and fall through to restart.
+        if (animationFrame) cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+      }
       idleFrames = 0;
+      forceFrames = 2;
+      running = true;
+      lastFrameAt = performance.now();
       animationFrame = requestAnimationFrame(loop);
     };
+
+    const stopLoop = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      running = false;
+    };
+
+    const onWake = () => startLoop();
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         startLoop();
-      } else if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-        animationFrame = 0;
+      } else {
+        stopLoop();
       }
     };
 
@@ -222,16 +253,21 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('resize', onWindowResize);
       document.addEventListener('visibilitychange', onVisibilityChange);
+      // Extra wake paths for the cases visibilitychange misses: alt-tab / window
+      // refocus, and bfcache restore via the browser back button.
+      window.addEventListener('focus', onWake);
+      window.addEventListener('pageshow', onWake);
       startLoop();
     };
 
     const destroy = () => {
       if (canvas) canvas.remove();
-      if (animationFrame) cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
+      stopLoop();
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('resize', onWindowResize);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onWake);
+      window.removeEventListener('pageshow', onWake);
     };
 
     prefersReducedMotion.onchange = () => {

@@ -65,6 +65,35 @@ export default function SmoothScroll({
     };
   }, []);
 
+  // OS sleep/wake (and bfcache restores) simply stop rAF for the duration —
+  // Lenis's scroll state and ScrollTrigger's cached pin/scrub geometry go
+  // stale relative to the real viewport. A pinned+scrubbed section (e.g.
+  // Services' flip-card deck) can then render at a stuck, wrong progress
+  // value on resume. Re-measure both once the tab has actually repainted.
+  useEffect(() => {
+    let raf = 0;
+
+    const resync = () => {
+      raf = requestAnimationFrame(() => {
+        lenisRef.current?.resize();
+        ScrollTrigger.refresh();
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") resync();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", resync);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", resync);
+    };
+  }, []);
+
   // Reset scroll to the top on route change. The native view transition swaps
   // the page, so we snap Lenis + native scroll and re-sync ScrollTrigger for
   // the incoming page's pinned/scrubbed sections.
