@@ -334,18 +334,19 @@ export default function Services() {
     >
       <div className="py-16 lg:hidden">
         <h2
-          className="mx-auto max-w-[800px] text-left font-light leading-[1.3] text-[#1D222E] drop-shadow-none text-[31px] sm:text-[42px] whitespace-pre-wrap"
+          className="mx-auto max-w-[800px] text-center font-light leading-[1.3] text-[#1D222E] drop-shadow-none text-[31px] sm:text-[42px] whitespace-pre-wrap"
           style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
         >
           {headingOverride ?? (
             <>
-              {`            Your website is the \nfirst impression `}
+              {`Your website is \nthe first impression \nfor `}
               <span className="inline-block align-middle mx-2 w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
                 <Image src={ornamentSrc} alt="ornament" fill className="object-cover" />
               </span>
-              {` for every client \n`}
+              {` every client \n`}
               <span className="text-[#858EA3]">you will ever have.</span>
-              {` \n                     It should be worth having.`}
+              <span aria-hidden className="mx-auto my-3 block h-px w-8 bg-[#c9c9c9]" />
+              {`It should be \nworth having.`}
             </>
           )}
         </h2>

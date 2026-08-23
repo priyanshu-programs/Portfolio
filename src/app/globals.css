@@ -397,6 +397,72 @@ body.is-transitioning {
   z-index: 2;
 }
 
+/* Mobile override: fade + scale instead of the clip reveal.
+
+   The desktop keyframe above was tuned against a desktop viewport and does not
+   survive the trip down. Two independent problems, one perceptual and one
+   compositing:
+
+   1. `inset()` is percentage-based, so the start rect is 20% of viewport width
+      by 32% of viewport height. At 1440x900 that's 288x288 — the square the
+      motion was designed around. At 390x844 it's 78x270, a narrow vertical
+      sliver that then stretches 5x horizontally against 3.1x vertically. The
+      distortion is visible in the snapshot as it opens.
+
+   2. `cubic-bezier(0.87, 0, 0.13, 1)` is an extreme ease-in-out: it moves
+      almost not at all for the first ~300ms of its 900ms. On a phone, where
+      the whole navigation should feel quicker than on desktop, that dead hold
+      reads as a frozen rectangle rather than as anticipation — the reported
+      "shows a square, then expands wholly". This is perceptual, not a dropped
+      frame; it happens at a locked 60fps.
+
+   So mobile gets its own motion rather than a scaled-down copy. `opacity` and
+   `transform` only — no `clip-path`, which also drops the per-frame raster of
+   an interpolating `round` radius over a full-viewport layer, the one cost
+   here that a mid-range phone actually can't absorb. Ease-out so motion starts
+   on the first frame, and short enough that it never becomes a wait.
+
+   Kept at 767px to match the breakpoint FloatingMenu and .landing-intro-row
+   already use — do not introduce a third value. */
+@media (max-width: 767px) {
+
+  /* The base rule holds the old view static under the clip reveal; with no clip
+     to reveal *through*, it has to dissolve instead or it would simply be cut
+     off when the new view lands. Shorter than the incoming animation so the
+     composite is never two half-opaque layers for long. */
+  ::view-transition-old(root) {
+    animation: pr-page-fade-out 260ms linear both;
+    z-index: 1;
+  }
+
+  ::view-transition-new(root) {
+    animation: pr-page-reveal-mobile 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    z-index: 2;
+  }
+}
+
+@keyframes pr-page-reveal-mobile {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pr-page-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 /* ── Case-study advance (scrolling from one project into the next) ──
    NextProject puts `cs-flatten` on <html> just before pushing, once the reader
    has scrolled through the foot-of-page sneak peek. The site's usual clip-path

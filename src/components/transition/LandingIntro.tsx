@@ -6,6 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { CustomEase } from "gsap/CustomEase";
 import Image from "next/image";
 import { useEffect, useMemo, useRef } from "react";
+import { PORTRAIT_FOCUS, isPortraitCovering } from "@/lib/heroPortrait";
 import { useSiteContent } from "@/components/ContentProvider";
 import {
   LIQUID_IMAGE_READY_ATTR,
@@ -77,35 +78,64 @@ const readPortraitAspect = (wrapper: HTMLElement): number => {
   return PORTRAIT_FALLBACK_ASPECT;
 };
 
-/** Mirrors the `lg:` breakpoint the hero uses to pick the portrait's fit mode.
- *  Below it the hero's box is a full 100dvh and the portrait COVERS it, cropped
- *  around the face (see `PORTRAIT_FOCUS` in Hero). At and above `lg` the
- *  original contain layout is untouched. */
-const isPortraitCovering = () =>
-  typeof window !== "undefined" &&
-  !window.matchMedia("(min-width: 1024px)").matches;
-
 /**
- * The rect the portrait is actually *painted* in — not its wrapper's box.
+ * The rect the portrait's art occupies — the target beat 7 fits the centre
+ * panel onto.
  *
- * Deliberately the general `object-contain` form rather than assuming the
- * height-constrained case: a differently-shaped portrait from the CMS, or a
- * wrapper narrower than `height × aspect`, flips which axis constrains.
+ * Deliberately the general form rather than assuming which axis constrains: a
+ * differently-shaped portrait from the CMS, or an unusually proportioned
+ * wrapper, flips it.
  *
  * ── MUST TRACK LiquidImage ───────────────────────────────────────────────
  * The panel is fitted onto this rect, so it has to describe where the picture
- * genuinely lands. Under `cover` the art overflows and is clipped by the
- * wrapper's own `overflow: hidden`, so the visible rect IS the wrapper box —
- * fitting to the larger uncropped art would overshoot and read as a jump at
- * the seam. Under `contain` the art letterboxes inside the box, and the
- * painted rect is the smaller inscribed one.
+ * genuinely lands.
+ *
+ * Under `contain` the art letterboxes inside the box and the rect is the
+ * smaller inscribed one. Under `cover` the art is scaled until the box is
+ * covered and the surplus overflows — and this returns that FULL overflowing
+ * rect, not the wrapper box it is clipped to.
+ *
+ * ── WHY THE UNCROPPED RECT, NOT THE VISIBLE ONE ──────────────────────────
+ * `Flip.fit` matches width and height independently, so fitting the 3/4 panel
+ * to the wrapper's ~0.45 box would scale it 4.2x wide but 6.9x tall — a ~40%
+ * horizontal squeeze, visible as the panel thinning mid-flight before it
+ * resolves. The uncropped art rect has the art's own aspect, which is the
+ * panel's own aspect, so the scale comes out uniform.
+ *
+ * Returning the larger rect is safe because nothing has to contain it: the
+ * stage clips it at the viewport edges during the flight
+ * (`.landing-intro-stage { overflow: hidden }`), and the portrait wrapper clips
+ * it after the swap (LiquidImage's root is `overflow-hidden`). The result is
+ * the same pixels the hero paints.
  */
 const getPaintedPortraitRect = (wrapper: HTMLElement) => {
   const box = wrapper.getBoundingClientRect();
   const aspect = readPortraitAspect(wrapper);
 
   if (isPortraitCovering()) {
-    return { width: box.width, height: box.height, x: box.left, y: box.top };
+    // Cover: whichever axis is short drives the scale, and the other overflows.
+    let width = box.height * aspect;
+    let height = box.height;
+    if (width < box.width) {
+      width = box.width;
+      height = box.width / aspect;
+    }
+
+    /* Place the overflow the way the shader's uAnchor does, so the panel lands
+       on the same crop the hero paints. `visible` is the fraction of the art
+       the box shows on each axis; the anchor distributes the rest. A centred
+       placement would be wrong here — the whole point of the focal x is that
+       the crop is asymmetric (more off the empty shoulder than off the face). */
+    const visibleX = Math.min(1, box.width / width);
+
+    return {
+      width,
+      height,
+      x: box.left - PORTRAIT_FOCUS.x * (1 - visibleX) * width,
+      // The focal y is the bottom anchor (0), so the art's bottom edge sits on
+      // the box's bottom and any surplus height runs off the top.
+      y: box.top + box.height - height,
+    };
   }
 
   let width = box.height * aspect;
