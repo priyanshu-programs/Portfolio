@@ -15,6 +15,21 @@ import { INTRO_ARMED_CLASS } from "@/lib/landingIntroArm";
 
 gsap.registerPlugin(ScrollTrigger, Flip, CustomEase);
 
+declare global {
+  interface Window {
+    /** Set inside `build()`, in the main effect below, once a mount of this
+     *  component has actually committed to running the intro sequence — not
+     *  inside `shouldPlayLandingIntro()` itself (see that function's doc
+     *  comment for why: dev StrictMode's double effect invocation makes an
+     *  eager write there self-defeating). On `window` rather than a
+     *  module-scope variable so a plain reload — a fresh document, fresh JS
+     *  context — gets a fresh `undefined` and replays, while every later mount
+     *  in the same tab session (after a soft navigation away from and back to
+     *  `/`) sees it and skips. */
+    __landingIntroPlayed?: boolean;
+  }
+}
+
 /** Fires (on `window`) when the intro's handoff begins — or was skipped — so
  *  the hero can play its entrance alongside the wipe. */
 export const LANDING_INTRO_DONE_EVENT = "landing-intro:done";
@@ -102,13 +117,34 @@ const getPaintedPortraitRect = (wrapper: HTMLElement) => {
  * navigation back to home, which would drop a 5.6s scroll-locked sequence on
  * top of the 0.9s view-transition the click already triggered.
  *
+ * ── THE NAVIGATION ENTRY ALONE IS NOT ENOUGH ─────────────────────────────
+ * `performance.getEntriesByType("navigation")` holds exactly one entry for the
+ * whole tab session — how the *document* was first loaded — and Next's client
+ * router never adds to it. Comparing that entry's URL against the current path
+ * catches /work → / (the entry still names /work), but not / → /work → / in
+ * the same tab: the entry genuinely names /, so the path check alone can't
+ * tell "this is that original load" from "we've soft-navigated back here
+ * later". `window.__landingIntroPlayed` is what closes that gap — see the
+ * effect below for where it actually gets set and why not here.
+ *
+ * This function stays a pure read of that flag, not a place that sets it,
+ * deliberately: React 19 dev StrictMode calls an effect's body, runs its
+ * cleanup, then calls the body again, synchronously, before paint. A write
+ * here would land during the first (phantom) call and already be `true` by
+ * the second (real) one, which would then skip — playing nothing at all, on
+ * every genuine load, in dev only. Committing later, from code that only the
+ * surviving call reaches, is what keeps that collapse a no-op like the rest of
+ * this effect's teardown already is.
+ *
  * ── HAS A PRE-PAINT TWIN ─────────────────────────────────────────────────
  * This is the authoritative rule, but it runs too late to raise the intro's
  * cover: it lives in a client bundle, so the earliest it can fire is the effect
  * below — after the browser has already painted the homepage. `ARM_SCRIPT` in
  * src/lib/landingIntroArm.ts is a hand-copied version of this predicate that a
  * parser-blocking script runs before first paint. Change one, change the other;
- * that file explains why sharing code between them is impossible.
+ * that file explains why sharing code between them is impossible. It does NOT
+ * check or set `__landingIntroPlayed` itself — see the comment on it there for
+ * why only this function's caller owns that flag.
  */
 export function shouldPlayLandingIntro(): boolean {
   if (typeof window === "undefined") return false;
@@ -118,6 +154,8 @@ export function shouldPlayLandingIntro(): boolean {
   }
 
   if (window.location.pathname !== "/") return false;
+
+  if (window.__landingIntroPlayed) return false;
 
   try {
     const [entry] = performance.getEntriesByType(
@@ -177,8 +215,23 @@ const CENTRE_INDEX = 2;
    codes these same y/scale values per ring, so the pre-paint cover's first
    frame matches what `gsap.set` writes below. Change these, change those. */
 
-/** A panel's distance from the centre: 0 for the centre, 2 for the edges. */
-const panelRing = (index: number) => Math.abs(index - CENTRE_INDEX);
+/**
+ * A panel's distance from the centre of the VISIBLE row: 0 for the centre, 1
+ * for its neighbours, 2 for the edges.
+ *
+ * Takes the visible count rather than closing over CENTRE_INDEX because below
+ * 768px the two edge panels are `display: none` (globals.css) and the row is
+ * three wide — the centre is index 1 there, not 2. Both counts are odd so the
+ * midpoint is exact; `Math.floor` is only a guard against a future even count
+ * or a dropped ref.
+ *
+ * On mobile only rings 0 and 1 are ever produced, which is correct: the
+ * survivors are the centre and its ring-1 neighbours, and they keep the same
+ * rise values they have on desktop — that is what keeps the CSS mirror valid
+ * in both modes.
+ */
+const panelRing = (index: number, visibleCount: number) =>
+  Math.abs(index - Math.floor(visibleCount / 2));
 
 /** Start offset per ring, in px. Values duplicated in globals.css. */
 const PANEL_RISE_Y = [56, 66, 76];
@@ -195,6 +248,21 @@ const PANEL_RISE_SCALE = [0.94, 0.932, 0.925];
  * this and the edges are still arriving after the row has started to close.
  */
 const PANEL_RISE_DELAY = [0, 0.19, 0.31];
+
+/**
+ * How far beat 3 closes the row, as a fraction of whatever gap the stylesheet
+ * opened at.
+ *
+ * This was a literal `2.5vw` against a literal `14.79vw` start. It has to be a
+ * ratio now because the opening gap is breakpoint-dependent — 14.79vw on
+ * desktop, 11vw below 768px, where the row is three wider panels instead of
+ * five narrow ones. A fixed target would close the mobile row by a much larger
+ * fraction of its spread and read as a different beat entirely.
+ *
+ * The value is the original desktop pair, so desktop is unchanged to the pixel:
+ * at 1440px the row still opens at ~213px and closes at ~36px.
+ */
+const GATHER_RATIO = 2.5 / 14.79;
 
 /** Longest we'll hold the sequence waiting on image decode before starting
  *  anyway. A preloader that waits on a slow network is worse than one that
@@ -354,9 +422,31 @@ export default function LandingIntro() {
     const counterText = counterTextRef.current;
     const wordmark = wordmarkRef.current;
     const wordmarkText = wordmarkTextRef.current;
-    const panelEls = panelRefs.current.filter(
+    const allPanelEls = panelRefs.current.filter(
       (el): el is HTMLDivElement => Boolean(el)
     );
+
+    /* Which panels the stylesheet has actually left in the flow.
+       Below 768px children 1 and 5 are `display: none` (globals.css) and the
+       row is three wide. Everything downstream — rings, the centre pick, beat
+       5's outer set — keys off this array rather than off a breakpoint
+       re-derived here, so the 768px number lives in exactly one place.
+
+       `offsetParent === null` is the cheap test for a `display: none`
+       ancestor-or-self, with no forced layout flush. Panels are
+       `position: relative` inside the `position: fixed` stage, and a fixed
+       ancestor is a valid offsetParent for a relative descendant, so there are
+       no false negatives here. (`getComputedStyle(el).display !== "none"` is
+       the unambiguous drop-in if this ever moves somewhere the stage isn't
+       visible yet.)
+
+       Read once: the visible count is fixed for the life of the sequence. A
+       resize across the breakpoint mid-flight is not supported and is not worth
+       supporting — the sequence is ~5.6s with the viewport scroll-locked, and
+       the boundary isn't reachable by rotating a phone (375↔812, 414↔896 both
+       stay below it). Re-running the effect on resize would be a far worse
+       failure mode than the one it fixes. */
+    const panelEls = allPanelEls.filter((el) => el.offsetParent !== null);
 
     if (
       !stage ||
@@ -375,8 +465,14 @@ export default function LandingIntro() {
       return;
     }
 
-    const centreEl = panelEls[CENTRE_INDEX] ?? panelEls[panelEls.length - 1];
+    /* Derived from the visible row, not from CENTRE_INDEX: on mobile the
+       visible array is [child2, child3, child4] in DOM order, so the centre is
+       index 1. Desktop still resolves to 2. Either way this picks the CMS
+       panel — the one beat 7 fits onto the hero portrait. */
+    const centreIndex = Math.floor(panelEls.length / 2);
+    const centreEl = panelEls[centreIndex] ?? panelEls[panelEls.length - 1];
     const outerEls = panelEls.filter((el) => el !== centreEl);
+    const visibleCount = panelEls.length;
 
     const count = { value: 0 };
     let didAnnounce = false;
@@ -404,13 +500,17 @@ export default function LandingIntro() {
     // more distance covered more slowly is what reads as weight. Per-ring, so
     // the edges start lower and further back — see the wave constants above.
     //
-    // Indexed off `panelEls`, not the original render order: a null ref would
-    // shift every subsequent panel's ring by one. In practice the filter above
-    // drops nothing (all five refs are set by the time the effect runs), which
-    // is also what keeps these indices aligned with the CSS `:nth-child` mirror.
+    // Indexed off `panelEls` — the VISIBLE panels — not the render order. Below
+    // 768px that array is three long (the edge pair is `display: none`), so the
+    // ring has to be computed against its length rather than CENTRE_INDEX.
+    //
+    // This stays aligned with the CSS `:nth-child` mirror because the mobile
+    // rule hides the OUTERMOST pair: child 3 is ring 0 and children 2/4 are
+    // ring 1 in both modes, so the values written here are the ones the mirror
+    // already painted. Hiding any other pair would desync the two.
     gsap.set(panelEls, {
-      y: (i: number) => PANEL_RISE_Y[panelRing(i)],
-      scale: (i: number) => PANEL_RISE_SCALE[panelRing(i)],
+      y: (i: number) => PANEL_RISE_Y[panelRing(i, visibleCount)],
+      scale: (i: number) => PANEL_RISE_SCALE[panelRing(i, visibleCount)],
       opacity: 0,
       /* Hand every property the late beats overwrite back to the stylesheet.
 
@@ -492,6 +592,26 @@ export default function LandingIntro() {
     const build = () => {
       if (cancelled) return;
 
+      /* Beat 3's start value, resolved from the stylesheet rather than assumed,
+         so the breakpoint stays a CSS concern. Read here — after
+         `waitForImages()`, before any tween — because nothing inline has
+         touched `gap` at this point, so this is the stylesheet's own number.
+
+         `columnGap`, not `gap`: the shorthand comes back as two values in
+         Chromium ("213px 213px") and empty in some engines, while `columnGap`
+         resolves to a single length everywhere and is the axis a flex row
+         actually uses. */
+      const openGapPx = parseFloat(getComputedStyle(row).columnGap) || 0;
+
+      // Commit the "already played" flag here, not inside shouldPlayLandingIntro()
+      // itself: by the time this async callback runs, dev StrictMode's
+      // synchronous mount → cleanup → mount has already settled, so only the
+      // surviving mount's `build()` ever reaches this line — the phantom
+      // mount's own call got `cancelled` by its cleanup before its deferred
+      // `waitForImages().then(build)` could resolve. See the flag's doc comment
+      // on Window (top of file) for the rest of the contract.
+      window.__landingIntroPlayed = true;
+
       /* Retiring the stage is deliberately *not* the timeline's `onComplete`.
          The final swap waits on the hero portrait's paint, which can resolve a
          few frames after the last tween — and hiding the stage before the swap
@@ -546,7 +666,7 @@ export default function LandingIntro() {
           opacity: 1,
           duration: 1.5,
           ease: RISE,
-          stagger: (i: number) => PANEL_RISE_DELAY[panelRing(i)],
+          stagger: (i: number) => PANEL_RISE_DELAY[panelRing(i, visibleCount)],
         },
         0
       );
@@ -579,17 +699,25 @@ export default function LandingIntro() {
       /* 3 — The row gathers, starting inside beat 1's tail so there is no dead
          frame between them.
 
-         Target and start value are a pair: `.landing-intro-row` opens wide at
-         14.79vw (~213px at 1440px, the value that puts the row edge-to-edge)
-         and closes to 2.5vw (~36px). Both are vw, so the gather covers
-         proportionally the same ground on every viewport.
+         ── THE TARGET IS DERIVED, NOT A LITERAL ─────────────────────────
+         `.landing-intro-row` opens at 14.79vw (~213px at 1440px, the value that
+         puts the row edge-to-edge) on desktop and at 11vw below 768px, where
+         the row is three wider panels. So the close is GATHER_RATIO × whatever
+         was actually resolved, which reproduces the old 2.5vw exactly on
+         desktop (~36px at 1440px) and scales the mobile close to match.
 
-         This is now the sequence's biggest move by far — the row travels from
-         spanning the full viewport down to a tight filmstrip, rather than the
-         ~11px nudge it made when the panels opened close together. Retune the
-         target whenever that start value changes; they are one pair, and a
-         target near the start makes the beat a silent no-op. */
-      tl.to(row, { gap: "2.5vw", duration: 1.5 }, 1.35);
+         Animated in px, not vw: the viewport cannot change mid-sequence (it is
+         scroll-locked for ~5.6s), so the distinction is unobservable, and px is
+         the one form GSAP tweens without ambiguity. Note a `var()` target would
+         NOT work here — GSAP can't interpolate one and would snap at the end.
+
+         This is the sequence's biggest move by far — the row travels from
+         spanning the full viewport down to a tight filmstrip. The start value
+         no longer needs the target retuned alongside it (that is what the ratio
+         buys), but the two are still one knob: change the CSS gap and the
+         closed gap moves proportionally. Change the RATIO if you want a
+         different closed spread specifically. */
+      tl.to(row, { gap: openGapPx * GATHER_RATIO, duration: 1.5 }, 1.35);
 
       /* 5 — Outer panels collapse from the edges inward.
 
@@ -603,6 +731,11 @@ export default function LandingIntro() {
          wipe moved earlier to stay ahead of beat 7b (see there). If the last
          slivers ever read as sitting on cream, push the wipe to 4.05 rather
          than dragging this collapse earlier — beat 7's fit is measured off it. */
+      /* `from: "edges"` degenerates gracefully on mobile: with only two outer
+         panels both get stagger position 0, so they collapse together rather
+         than in sequence. That is the right read for a symmetric pair, and it
+         finishes at ~3.75 instead of ~3.89 — widening, not narrowing, the
+         margin against the wipe that the note above calls uncomfortable. */
       tl.to(
         outerEls,
         {
@@ -909,7 +1042,17 @@ export default function LandingIntro() {
               src={src}
               alt=""
               fill
-              priority
+              /* Only the panels that are visible on EVERY viewport preload.
+                 Children 1 and 5 are `display: none` below 768px, and hiding an
+                 image does not cancel its fetch — with `priority` they would
+                 also carry a <link rel=preload>, putting two never-seen images
+                 on the critical path of the smallest connections and delaying
+                 `waitForImages()` behind them.
+
+                 Costless on desktop: these two are the last to rise
+                 (PANEL_RISE_DELAY[2] = 0.31), so they have the most slack of
+                 any panel, and they still decode inside the same wait. */
+              priority={i !== 0 && i !== PANEL_COUNT - 1}
               /* The centre panel ends the sequence at the hero portrait's
                  painted size (~603px wide at desktop), so it must be requested
                  at the hero's own sizes — a 20vw hint resolves to ~284px and
@@ -925,7 +1068,7 @@ export default function LandingIntro() {
               sizes={
                 isCentre
                   ? "(max-width: 640px) 95vw, (max-width: 1024px) 80vw, 750px"
-                  : "(max-width: 640px) 34vw, 20vw"
+                  : "(max-width: 767px) 24vw, 20vw"
               }
               /* Centre matches the hero's own object-fit so the crop is
                  identical at the seam; the panel's own 3/4 box holds the

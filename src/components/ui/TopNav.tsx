@@ -41,7 +41,7 @@ const TopNav = forwardRef<HTMLElement, TopNavProps>(function TopNav(
           © {name}
         </span>
         <ul
-          className="flex items-center gap-8 md:gap-[76px]"
+          className="hidden md:flex items-center gap-8 md:gap-[76px]"
           style={{ fontWeight: 363, letterSpacing: "-0.01em" }}
         >
           {NAV_LINKS.map((item) => (
@@ -75,7 +75,7 @@ const TopNav = forwardRef<HTMLElement, TopNavProps>(function TopNav(
       </Link>
 
       <nav
-        className="flex items-center gap-8 md:gap-[76px] text-[19.36px]"
+        className="hidden md:flex items-center gap-8 md:gap-[76px] text-[19.36px]"
         style={{ fontWeight: 363, letterSpacing: "-0.01em" }}
       >
         {NAV_LINKS.map(({ label, href }) => (

@@ -425,7 +425,7 @@ export default function Hero() {
             ref={pillRef}
             href="/contact"
             aria-label="Open to projects, let's talk"
-            className="relative z-30 mt-[150px] sm:mt-[180px] lg:mt-0 lg:absolute lg:left-0 lg:top-[38%] group cursor-pointer w-fit"
+            className="hidden lg:flex relative z-30 mt-[150px] sm:mt-[180px] lg:mt-0 lg:absolute lg:left-0 lg:top-[38%] group cursor-pointer w-fit"
           >
             <div className="flex items-center gap-[48px] bg-ink text-white rounded-r-full rounded-l-none w-fit -ml-8 pl-[80px] pr-[16px] h-[100px] transition-transform duration-[420ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] group-hover:translate-x-4">
               <span className="text-[18px] sm:text-[20px] leading-[1.15] font-light">
@@ -443,11 +443,11 @@ export default function Hero() {
           {/* ── Intro Text Block ─────────────────────── */}
           <div
             ref={introWrapRef}
-            className="relative z-30 px-6 sm:px-8 lg:px-0 lg:absolute lg:left-[calc(50%+27vw)] lg:top-[38%] mt-4 lg:mt-0 lg:w-[22vw] lg:max-w-[300px]"
+            className="absolute z-30 left-0 bottom-8 sm:bottom-10 px-6 sm:px-8 lg:px-0 lg:relative lg:bottom-auto lg:left-[calc(50%+27vw)] lg:top-[38%] lg:w-[22vw] lg:max-w-[300px] mix-blend-difference lg:mix-blend-normal"
           >
             <div ref={introRef}>
               <h1
-                className="text-hero-label leading-[1.15] text-ink"
+                className="text-hero-label leading-[1.15] text-white lg:text-ink"
                 style={{
                   fontWeight: 400,
                   letterSpacing: "-0.01em"
@@ -460,7 +460,7 @@ export default function Hero() {
                   </Fragment>
                 ))}
               </h1>
-              <p className="mt-3 text-hero-desc leading-[1.4] text-ink/80" style={{ fontWeight: 300 }}>
+              <p className="hidden lg:block mt-3 text-hero-desc leading-[1.4] text-ink/80" style={{ fontWeight: 300 }}>
                 {paragraphLines.map((line, i) => (
                   <Fragment key={i}>
                     {i > 0 && <br />}

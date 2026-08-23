@@ -389,9 +389,9 @@ export default function FloatingMenu() {
       </div>
 
       <div
-        className={`fixed right-6 top-[21.6px] z-[10020] flex items-center gap-4 transition-all duration-300 ease-in-out md:right-[40px] md:top-[39.6px] ${isVisible || isOpen
-          ? "pointer-events-auto translate-y-0 opacity-100"
-          : "pointer-events-none -translate-y-4 opacity-0"
+        className={`fixed right-6 top-[21.6px] z-[10020] flex items-center gap-4 opacity-100 translate-y-0 pointer-events-auto transition-all duration-300 ease-in-out md:right-[40px] md:top-[39.6px] md:opacity-0 md:-translate-y-4 md:pointer-events-none ${isVisible || isOpen
+          ? "md:pointer-events-auto md:translate-y-0 md:opacity-100"
+          : ""
           }`}
       >
         <div className={`hidden md:block transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>

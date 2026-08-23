@@ -6,6 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "@/components/transition/SmartLink";
 import { useSiteContent } from "@/components/ContentProvider";
 import HoverPreviewCard from "@/components/ui/HoverPreviewCard";
+import { GlassButton } from "@/components/ui/glass-button";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -24,201 +25,6 @@ const Reveal = ({ children }: { children: string }) => (
     ))}
   </>
 );
-
-/* ─── Glassmorphic About Me Button ───────────────────────── */
-const AboutMeButton = () => {
-  const buttonRef = useRef<HTMLAnchorElement>(null);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    buttonRef.current.style.setProperty('--mouse-x', `${x}px`);
-    buttonRef.current.style.setProperty('--mouse-y', `${y}px`);
-  };
-
-  return (
-    <>
-      <style>{`
-        .about-btn-box {
-          --w: 224px;
-          --h: 76px;
-          --r: 9999px;
-          position: relative;
-          width: var(--w);
-          height: var(--h);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          border-radius: var(--r);
-          border: 1px solid rgba(51,51,51,0.06);
-          box-shadow:
-            inset 2px -2px 1px -1px rgba(255,255,255,1),
-            inset -2px 2px 1px -1px rgba(255,255,255,1),
-            inset 6px -6px 1px -6px rgba(255,255,255,0.75),
-            inset -6px 6px 1px -6px rgba(255,255,255,0.75),
-            inset 0 1px 1px rgba(255,255,255,0.9),
-            inset 0 -3px 4px -2px rgba(255,255,255,0.6),
-            inset 0 0 2px rgba(0,0,0,0.8),
-            0 8px 12px -4px rgba(50,40,35,0.35),
-            0 3px 5px -2px rgba(50,40,35,0.22),
-            0 1px 1px rgba(255,255,255,0.6);
-          background: rgba(0,0,0,0.02);
-          backdrop-filter: blur(2px);
-          cursor: pointer;
-          padding: 0 0.7rem 0 1.4rem;
-          gap: 1.25rem;
-          transition: transform 0.25s cubic-bezier(0.25,0.46,0.45,0.94), background 0.25s;
-          text-decoration: none;
-          overflow: hidden;
-        }
-
-        .about-btn-box::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(
-              120% 90% at 18% 8%,
-              rgba(255,255,255,0.95) 0%,
-              rgba(255,255,255,0.4) 26%,
-              transparent 52%
-            ),
-            linear-gradient(
-              135deg,
-              rgba(255,255,255,0.5) 0%,
-              rgba(255,255,255,0.1) 30%,
-              transparent 55%
-            );
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        .about-btn-box::after {
-          content: "";
-          position: absolute;
-          left: 4%;
-          width: 38%;
-          top: 10%;
-          height: 26%;
-          border-radius: 9999px;
-          background: radial-gradient(
-            ellipse at center,
-            rgba(255,255,255,1) 0%,
-            rgba(255,255,255,0.6) 55%,
-            rgba(255,255,255,0) 100%
-          );
-          filter: blur(2px);
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        /* Live specular reflection — follows the cursor like real glass */
-        .about-btn-live-spec {
-          position: absolute;
-          inset: 0;
-          border-radius: var(--r);
-          pointer-events: none;
-          z-index: 2;
-          opacity: 0;
-          transition: opacity 0.35s ease;
-          background: radial-gradient(
-            circle 90px at var(--mouse-x, 50%) var(--mouse-y, 50%),
-            rgba(255,255,255,1) 0%,
-            rgba(255,255,255,0.5) 40%,
-            transparent 75%
-          );
-          mix-blend-mode: overlay;
-        }
-        .about-btn-box:hover .about-btn-live-spec {
-          opacity: 1;
-        }
-
-        .about-btn-box:hover {
-          background: rgba(0,0,0,0.01);
-          transform: translateY(-3px) scale(1.03);
-        }
-        .about-btn-box:hover .about-btn-icon {
-          transform: scale(1.1);
-        }
-        .about-btn-box:active {
-          transform: scale(0.94);
-        }
-        .about-btn-box:active .about-btn-text {
-          color: #000;
-        }
-        .about-btn-box:active .about-btn-icon {
-          transform: scale(0.94);
-        }
-        .about-btn-circle-overlay {
-          position: absolute;
-          width: calc(var(--w) - 9px);
-          height: calc(var(--h) - 9px);
-          border: 1px solid rgba(255,255,255,0.2);
-          border-radius: 9999px;
-          filter: blur(1px);
-          pointer-events: none;
-        }
-        .about-btn-text {
-          font-size: 19px;
-          font-family: system-ui, sans-serif;
-          color: #3e3e3e;
-          letter-spacing: -0.01em;
-          filter: drop-shadow(0 25px 3px rgba(102,102,102,0.15));
-          position: relative;
-          z-index: 10;
-          white-space: nowrap;
-        }
-        .about-btn-icon {
-          width: 42px;
-          height: 42px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          background: #232323;
-          border-radius: 50%;
-          box-shadow:
-            0 6px 10px -2px rgba(0,0,0,0.4),
-            0 2px 4px rgba(0,0,0,0.3),
-            inset 0 1px 1px rgba(255,255,255,0.15);
-          transition: transform 0.25s cubic-bezier(0.25,0.46,0.45,0.94);
-          position: relative;
-          z-index: 10;
-          flex-shrink: 0;
-        }
-        .about-btn-svg {
-          width: 16px;
-          fill: #f5f5f5;
-          filter: drop-shadow(0 25px 3px rgba(102,102,102,0.2));
-        }
-      `}</style>
-
-      <Link
-        href="/about"
-        className="about-btn-box"
-        aria-label="About me"
-        ref={buttonRef}
-        onMouseMove={handleMouseMove}
-      >
-        <div className="about-btn-live-spec" />
-        <span className="about-btn-text">About me</span>
-        <div className="about-btn-icon">
-          <svg
-            className="about-btn-svg"
-            viewBox="0 0 1024 1024"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden
-          >
-            <path d="M779.180132 473.232045 322.354755 16.406668c-21.413706-21.413706-56.121182-21.413706-77.534887 0-21.413706 21.413706-21.413706 56.122205 0 77.534887l418.057421 418.057421L244.819868 930.057421c-21.413706 21.413706-21.413706 56.122205 0 77.534887 10.706853 10.706853 24.759917 16.059767 38.767955 16.059767s28.061103-5.353938 38.767955-16.059767L779.180132 550.767955C800.593837 529.35425 800.593837 494.64575 779.180132 473.232045z" />
-          </svg>
-        </div>
-        <div className="about-btn-circle-overlay" />
-      </Link>
-    </>
-  );
-};
 
 const MoreWorkButton = () => {
   const buttonRef = useRef<HTMLAnchorElement>(null);
@@ -470,7 +276,9 @@ export default function AboutWork() {
             ))}
           </p>
           <div className="reveal-text mt-8 flex justify-start items-center">
-            <AboutMeButton />
+            <GlassButton as={Link} href="/about" aria-label="About me">
+              About me
+            </GlassButton>
           </div>
         </div>
       </div>

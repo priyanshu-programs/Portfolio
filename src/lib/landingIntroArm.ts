@@ -61,8 +61,18 @@ const ARM_FAILSAFE_MS = 4000;
  * Mirrors `shouldPlayLandingIntro()` condition-for-condition and in the same
  * order. The `typeof window === "undefined"` guard it opens with is omitted
  * here for the obvious reason: a parser-blocking script cannot run on the
- * server. The `entry.name` path comparison at the end is what stops the intro
- * replaying on a soft navigation from /work back to / — do not drop it.
+ * server. The `entry.name` path comparison is what stops the intro replaying
+ * on a soft navigation from /work back to / — do not drop it.
+ *
+ * Deliberately does NOT check or set `window.__landingIntroPlayed` (the flag
+ * `shouldPlayLandingIntro()` uses to stop / → /work → / from replaying in the
+ * same tab): this script runs once per hard document load, before that flag
+ * could ever have been set by an earlier soft navigation — a fresh load always
+ * gets a fresh `window`. Setting it here would be worse than useless: it fires
+ * before the intro has actually run, so the effect below would see its own
+ * cover's arming as "already played" and skip on the very load that armed it.
+ * Only the component sets that flag, once it has actually committed to the
+ * sequence.
  */
 export const ARM_SCRIPT = `(function(){try{` +
   `if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;` +

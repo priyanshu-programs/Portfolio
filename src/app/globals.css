@@ -546,8 +546,24 @@ html.intro-armed .landing-intro-stage {
    With PANEL_COUNT = 5 and CENTRE_INDEX = 2 the rings are fixed: child 3 is the
    centre, 2 and 4 the mid ring, 1 and 5 the edges. Values are duplicated from
    `PANEL_RISE_Y` / `PANEL_RISE_SCALE` in LandingIntro.tsx — change one, change
-   the other; both sides carry a pointer here. If PANEL_COUNT ever stops being
-   5, these selectors are wrong and must be rewritten. */
+   the other; both sides carry a pointer here.
+
+   ── WHY THE MOBILE ROW DOESN'T BREAK THIS ────────────────────────────────
+   Below 768px the row is three panels, not five — but these selectors are
+   still correct, and that is the whole reason the mobile mode is built by
+   hiding children 1 and 5 rather than by rendering three.
+
+   Hiding the OUTER pair leaves the ring→nth-child mapping untouched: child 3
+   is ring 0 and children 2/4 are ring 1 in both modes. Only the ring-2 rule
+   below goes dead on mobile, which is exactly what's wanted. Render three
+   instead and every mapping here shifts by one — on top of the pre-paint
+   flash that a JS-decided count would cause in the first place, since this
+   mirror paints before React exists.
+
+   So: if the mobile row ever needs a different SET of panels (not just fewer),
+   it still has to be done by hiding, and the hidden ones still have to be the
+   outermost. If PANEL_COUNT itself ever stops being 5, these selectors are
+   wrong and must be rewritten. */
 html.intro-armed .landing-intro-panel {
   opacity: 0;
 }
@@ -583,7 +599,8 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
 /* `justify-content: center` is load-bearing, not cosmetic — do not change it to
    `space-between` to widen the spread. Two beats depend on it:
 
-   - Beat 3 gathers the panels by animating this `gap` down to 0.4vw. That only
+   - Beat 3 gathers the panels by animating this `gap` down (see GATHER_RATIO in
+     LandingIntro.tsx). That only
      moves anything while the row's width is its content's width. Under
      `space-between` the row is pinned to the viewport and flexbox hands the
      reclaimed space straight back to its own distribution, so the gather is a
@@ -601,9 +618,17 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
    keeps doing the two jobs above. Change the panel width and this gap has to be
    re-solved or the row stops meeting the margins.
 
-   The gap is also the beat-3 gather's start value, so it and the target in
-   LandingIntro.tsx are a pair — change this and that gather has to be re-tuned
-   or it stops reading. */
+   The gap is also the beat-3 gather's start value — but the target is no longer
+   a literal that has to be retuned alongside it. Beat 3 reads this resolved gap
+   at runtime and closes to a fixed FRACTION of it (`GATHER_RATIO` in
+   LandingIntro.tsx, = the original 2.5/14.79 desktop pair). So changing this
+   value rescales the gather automatically and keeps the same visual close.
+
+   That is what lets the mobile block further down open at a different gap
+   without a second target in the JS. The flip side: this value and the desktop
+   CLOSED gap are now one knob, not two. Change this and the row still ends the
+   gather proportionally where it does today — if you want a different closed
+   spread specifically, change the ratio, not this. */
 .landing-intro-row {
   position: absolute;
   inset: 0;
@@ -666,6 +691,59 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
    anywhere; it just silently does nothing. Do not "tidy" this back. */
 .landing-intro-panel--centre {
   background-color: var(--color-cream);
+}
+
+/* ── Mobile: three panels, scaled up ──────────────────────────────────────
+   Below 768px the five-panel row does not fit and never did: 5 panels at the
+   base clamp's 37px floor plus 4 × 14.79vw gaps is ~407px against a 375px
+   viewport, so the edge panels were silently clipped by the stage's
+   `overflow: hidden`. The clamp also pins to that 37px floor across the WHOLE
+   mobile range, so the panels read as confetti rather than as a composition.
+
+   The fix is fewer, bigger panels — not the same five packed tighter. The two
+   edge panels leave and the remaining three grow to fill the width, so the row
+   is a composition at phone sizes instead of a miniature of the desktop one.
+
+   ── `display: none`, NOT A THREE-PANEL RENDER ────────────────────────────
+   Load-bearing, and the reason is above in the `html.intro-armed` mirror: that
+   mirror paints BEFORE React exists (the arming script stamps the class in the
+   head), so a JS/matchMedia-decided panel count would paint five and then drop
+   two — a flash inside the very cover that exists to prevent flashes. Hiding
+   the outer pair also leaves the mirror's ring→nth-child mapping identical in
+   both modes. Keep the five children.
+
+   The JS side agrees by MEASURING rather than by re-deriving the breakpoint:
+   `panelEls` in LandingIntro.tsx filters on `offsetParent`, so the rings, the
+   centre pick, and beat 5's outer set all follow whatever this block leaves
+   visible. There is no duplicated 768px in the TSX — deliberately. */
+@media (max-width: 767px) {
+  .landing-intro-panel:nth-child(1),
+  .landing-intro-panel:nth-child(5) {
+    display: none;
+  }
+
+  /* Same arithmetic as the desktop pair, re-solved for three panels:
+     3 × panel + 2 × gap + 2 × margin = 100vw.
+     At 24vw panels and 3vw margins: 3(24) + 2(gap) + 6 = 100 → gap = 11vw.
+     Beat 3 reads this and closes to GATHER_RATIO × it, so there is no second
+     gather target to keep in sync. */
+  .landing-intro-row {
+    gap: 11vw;
+  }
+
+  /* No `clamp()` here on purpose — a clamp is what pins the desktop rule to a
+     floor across this entire range. Pure `vw` keeps the row's proportions
+     identical at 320px and at 767px, which is what lets one gather ratio serve
+     the whole range.
+
+     The `min()` is a LANDSCAPE guard, inert in portrait: at 3/4 aspect a 24vw
+     panel is 32vw tall, which at 767×360 is 245px and would collide with the
+     counter (~77px up from the bottom). 22vh caps the height at ~79px there.
+     In portrait 22vh is ~179px at 375×812, far above the 90px the vw term
+     gives, so it never applies. */
+  .landing-intro-panel {
+    width: min(24vw, 22vh);
+  }
 }
 
 /* Zero-paint measurement target for the final fit.
@@ -1055,6 +1133,180 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
     background: none;
   }
 }
+
+/* ── Glass button ────────────────────────────────────
+   Frosted-glass pill used by src/components/ui/glass-button.tsx. Extracted
+   from an inline <style> block in AboutWork.tsx so the look lives beside
+   .pearl-btn above rather than in a component-local template literal.
+
+   Deliberately UNLAYERED. The @layer base rule near the top of this file
+   forces border-color: transparent on every element; unlayered CSS outranks
+   every layer, so the 1px white edge below survives. Moving this into
+   @layer components would silently flatten the glass rim.
+
+   Geometry comes from --w/--h, set per size modifier, so .glass-button-
+   circle-overlay's calc(var(--w) - 9px) tracks automatically. */
+
+.glass-button {
+  --r: 9999px;
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  color: inherit;
+  width: var(--w);
+  height: var(--h);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: var(--r);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow:
+    inset 2px -2px 1px -1px rgba(255,255,255,1),
+    inset -2px 2px 1px -1px rgba(255,255,255,1),
+    inset 6px -6px 1px -6px rgba(255,255,255,1),
+    inset -6px 6px 1px -6px rgba(255,255,255,1),
+    inset 0 1px 1px rgba(255,255,255,1),
+    inset 0 -3px 4px -2px rgba(255,255,255,0.9),
+    inset 0 0 2px rgba(0,0,0,0.35),
+    0 14px 20px -8px rgba(50,40,35,0.18),
+    0 4px 8px -3px rgba(50,40,35,0.12),
+    0 1px 1px rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+  padding: 0 0.6rem 0 1.4rem;
+  gap: 1.25rem;
+  transition: transform 0.25s cubic-bezier(0.25,0.46,0.45,0.94), background 0.25s;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.glass-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      85% 65% at 22% 6%,
+      rgba(255,255,255,1) 0%,
+      rgba(255,255,255,0.85) 16%,
+      rgba(255,255,255,0.3) 34%,
+      transparent 56%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.5) 0%,
+      rgba(255,255,255,0.1) 30%,
+      transparent 55%
+    );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.glass-button::after {
+  content: "";
+  position: absolute;
+  left: 6%;
+  width: 46%;
+  top: 8%;
+  height: 20%;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255,255,255,1) 0%,
+    rgba(255,255,255,0.7) 45%,
+    rgba(255,255,255,0) 100%
+  );
+  filter: blur(3px);
+  transform: rotate(-8deg);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Live specular reflection — follows the cursor like real glass */
+.glass-button-live-spec {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r);
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    circle 90px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255,255,255,1) 0%,
+    rgba(255,255,255,0.5) 40%,
+    transparent 75%
+  );
+  mix-blend-mode: overlay;
+}
+.glass-button:hover .glass-button-live-spec {
+  opacity: 1;
+}
+
+.glass-button:hover {
+  background: rgba(255,255,255,0.75);
+  transform: translateY(-3px) scale(1.03);
+}
+.glass-button:hover .glass-button-icon {
+  transform: scale(1.1);
+}
+.glass-button:active {
+  transform: scale(0.94);
+}
+.glass-button:active .glass-button-text {
+  color: #000;
+}
+.glass-button:active .glass-button-icon {
+  transform: scale(0.94);
+}
+.glass-button-circle-overlay {
+  position: absolute;
+  width: calc(var(--w) - 9px);
+  height: calc(var(--h) - 9px);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 9999px;
+  filter: blur(1px);
+  pointer-events: none;
+}
+.glass-button-text {
+  font-size: 19px;
+  font-family: system-ui, sans-serif;
+  color: #3e3e3e;
+  letter-spacing: -0.01em;
+  filter: drop-shadow(0 25px 3px rgba(102,102,102,0.15));
+  position: relative;
+  z-index: 10;
+  white-space: nowrap;
+}
+.glass-button-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #141414;
+  border-radius: 50%;
+  box-shadow:
+    0 6px 10px -2px rgba(0,0,0,0.45),
+    0 2px 4px rgba(0,0,0,0.35),
+    inset 0 1px 1px rgba(255,255,255,0.18);
+  transition: transform 0.25s cubic-bezier(0.25,0.46,0.45,0.94);
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+.glass-button-svg {
+  width: 14px;
+  fill: #ffffff;
+  filter: drop-shadow(0 25px 3px rgba(102,102,102,0.2));
+}
+
+.glass-button--default { --w: 224px; --h: 76px; }
+.glass-button--sm      { --w: 176px; --h: 60px; }
+.glass-button--lg      { --w: 272px; --h: 88px; }
+.glass-button--icon    { --w: 76px;  --h: 76px; padding: 0; gap: 0; }
 
 /* ── BloomFieldGradient blob radius ────────────────────────
    The contact page's mesh-gradient blobs take their radius from this property,

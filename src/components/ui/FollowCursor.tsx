@@ -16,6 +16,10 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
   rate = 0.4, // How closely they follow each other
 }) => {
   useEffect(() => {
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      return;
+    }
+
     let canvas: HTMLCanvasElement;
     let context: CanvasRenderingContext2D | null;
     let animationFrame = 0;
