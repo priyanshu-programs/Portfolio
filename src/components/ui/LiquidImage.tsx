@@ -22,13 +22,17 @@ const fragment = `
   uniform float uTime;
   varying vec2 vUv;
   uniform vec2 uScale;
+  uniform vec2 uAnchor;
   uniform vec2 uResolution;
 
   void main() {
       vec3 flow = texture2D(tFlow, vUv).rgb;
-      
-      // We map the UVs for object-contain object-bottom
-      vec2 myUV = (vUv - vec2(0.5, 0.0)) * uScale + vec2(0.5, 0.0);
+
+      // object-position, as the fixed point of the uScale expansion: the UV
+      // that maps to itself. (0.5, 0.0) is centre/bottom — the original
+      // hard-coded behaviour; (0.5, 1.0) anchors the image's top edge instead,
+      // letting surplus height fall off the bottom.
+      vec2 myUV = (vUv - uAnchor) * uScale + uAnchor;
       
       // Chromatic aberration on the flow distortion
       // Balanced premium RGB split
@@ -50,10 +54,42 @@ const fragment = `
   }
 `;
 
+/** How the picture is mapped into its box, mirroring the CSS `object-fit`
+ *  values of the same name. Both render paths honour this identically — the
+ *  WebGL `uScale`/`uAnchor` pair in `resize()` and the fallback <img>'s
+ *  object-fit/-position — and LandingIntro re-derives the same mapping twice:
+ *  to fit its centre panel onto the painted rect (`getPaintedPortraitRect`) and
+ *  to paint that panel with a matching crop. Changing one means changing all. */
+export type LiquidImageFit = "contain" | "cover";
+
+/** Which point of the *image* is pinned to the same point of the box — the
+ *  fixed point of the crop, i.e. CSS `object-position`. Fractions of the
+ *  image's own width/height, x from the left, y from the BOTTOM (matching the
+ *  shader's UV space, where y=0 is the bottom edge).
+ *
+ *  It exists because a centred crop is the wrong default for an off-centre
+ *  subject: the hero portrait's head spans x≈0.17–0.65 while the shoulders run
+ *  nearly the full frame, so cropping symmetrically eats into the face. Pulling
+ *  the anchor left takes the crop out of the empty shoulder instead. */
+export interface LiquidImageFocus {
+  x?: number;
+  y?: number;
+}
+
+const DEFAULT_FOCUS: Required<LiquidImageFocus> = { x: 0.5, y: 0.0 };
+
 interface LiquidImageProps {
   src: string;
   alt: string;
   className?: string;
+  /** Defaults to `contain`, which is what every caller wanted before the hero
+   *  needed to fill a full-viewport box on small screens. */
+  fit?: LiquidImageFit;
+  /** Defaults to centre-x / bottom-y — the original hard-coded behaviour. */
+  focus?: LiquidImageFocus;
+  /** Overrides the responsive `sizes` hint for the fallback <img>. Only matters
+   *  on the non-WebGL path, where the picture is a real <Image fill>. */
+  sizes?: string;
 }
 
 /** Fired on the container once the picture is actually on screen — the first
@@ -92,10 +128,40 @@ const canCreateWebGLContext = () => {
   }
 };
 
-export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
+export default function LiquidImage({
+  src,
+  alt,
+  className,
+  fit = "contain",
+  focus,
+  sizes,
+}: LiquidImageProps) {
+  const focusX = focus?.x ?? DEFAULT_FOCUS.x;
+  const focusY = focus?.y ?? DEFAULT_FOCUS.y;
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackRef = useRef<HTMLDivElement>(null);
+  /* `fit`/`focus` are read through a ref rather than listed as effect
+     dependencies. They change when the viewport crosses the lg breakpoint, and
+     rebuilding the effect there would tear down and re-create the WebGL context
+     — a blank canvas for a frame, plus a fresh texture fetch, on every
+     rotation. The resize path below simply consults this.
+
+     `refitRef` is how a change reaches the canvas without that teardown: the
+     breakpoint flip also resizes the box, which fires the ResizeObserver, but
+     that is incidental rather than guaranteed — a caller could change the focus
+     alone. The effect below calls it explicitly. */
+  const fitRef = useRef<{ fit: LiquidImageFit; x: number; y: number }>({
+    fit,
+    x: focusX,
+    y: focusY,
+  });
+  fitRef.current = { fit, x: focusX, y: focusY };
+
+  const refitRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    refitRef.current?.();
+  }, [fit, focusX, focusY]);
 
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -220,6 +286,8 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
         tWater: { value: texture },
         uResolution: { value: new Vec2(window.innerWidth, window.innerHeight) },
         uScale: { value: new Vec2(1, 1) },
+        // Centre/bottom by default — see the shader and `resize()`.
+        uAnchor: { value: new Vec2(0.5, 0.0) },
         tFlow: flowmap.uniform
       },
       transparent: true
@@ -258,7 +326,20 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
         const canvasAspect = width / height;
         let scaleX = 1, scaleY = 1;
 
-        if (canvasAspect > imageAspect) {
+        /* uScale expands the sampled UV range, so a value > 1 on an axis pulls
+           in *more* than the box (letterboxing that axis) and a value < 1
+           samples a sub-rect (cropping it). Contain scales the axis the box has
+           to spare; cover scales the other one. The branches are exact mirrors,
+           which is why they read as swapped assignments. */
+        if (fitRef.current.fit === "cover") {
+          if (canvasAspect > imageAspect) {
+            scaleX = 1;
+            scaleY = imageAspect / canvasAspect;
+          } else {
+            scaleX = canvasAspect / imageAspect;
+            scaleY = 1;
+          }
+        } else if (canvasAspect > imageAspect) {
           scaleX = canvasAspect / imageAspect;
           scaleY = 1;
         } else {
@@ -266,6 +347,23 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
           scaleY = imageAspect / canvasAspect;
         }
         program.uniforms.uScale.value.set(scaleX, scaleY);
+
+        /* The fixed point of that expansion — object-position, with y measured
+           from the BOTTOM (y=0) as this UV space does.
+
+           Deliberately NOT clamped into the "safe" [scale/2, 1-scale/2] band.
+           That band is where the sampled window stays wholly inside the image,
+           but clamping to it silently overrides the caller at exactly the
+           values worth asking for: at a phone aspect the band is [0.30, 0.70],
+           so a focus of 0.27 would be pinned to 0.30 and quietly reframed. The
+           shader's own boundary checks already blank any out-of-range sample,
+           so the unclamped value is safe as well as honest — and it is what
+           keeps this in step with the fallback's CSS object-position, which
+           applies no such clamp either. */
+        program.uniforms.uAnchor.value.set(
+          fitRef.current.x,
+          fitRef.current.y
+        );
       }
 
       dirty = true; // size/texture changed — redraw the base image once
@@ -274,6 +372,8 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(container);
     window.addEventListener('resize', resize);
+    // Lets a fit/focus change re-run the mapping without rebuilding the context.
+    refitRef.current = resize;
     resize();
 
     const updateMouse = (e: MouseEvent | TouchEvent) => {
@@ -360,6 +460,7 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
     reqId = requestAnimationFrame(update);
 
     return () => {
+      refitRef.current = null;
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       window.removeEventListener('resize', resize);
@@ -383,8 +484,23 @@ export default function LiquidImage({ src, alt, className }: LiquidImageProps) {
           src={src}
           alt=""
           fill
-          sizes="(max-width: 640px) 95vw, (max-width: 1024px) 80vw, 750px"
-          className="object-contain object-bottom"
+          sizes={
+            sizes ?? "(max-width: 640px) 95vw, (max-width: 1024px) 80vw, 750px"
+          }
+          className={fit === "cover" ? "object-cover" : "object-contain"}
+          /* Inline rather than a Tailwind class because the focal x is an
+             arbitrary fraction (0.27 for the hero) that isn't on the utility
+             scale.
+
+             The percentage IS the anchor: CSS aligns the P% point of the image
+             with the P% point of the box, which is the same fixed-point mapping
+             the shader's uAnchor expresses — so the two paths agree exactly, as
+             long as neither clamps (see the uAnchor note in resize()). The y is
+             flipped only because this UV space measures from the bottom while
+             object-position measures from the top. */
+          style={{
+            objectPosition: `${focusX * 100}% ${(1 - focusY) * 100}%`,
+          }}
           aria-hidden="true"
         />
       </div>
