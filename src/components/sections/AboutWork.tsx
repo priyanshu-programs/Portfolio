@@ -279,7 +279,7 @@ export default function AboutWork() {
               </Fragment>
             ))}
           </p>
-          <div className="reveal-text mt-8 flex justify-start items-center">
+          <div className="reveal-text mt-8 flex justify-center lg:justify-start items-center">
             <GlassButton as={Link} href="/about" aria-label="About me">
               About me
             </GlassButton>
@@ -368,7 +368,7 @@ export default function AboutWork() {
                   {row.services || "Design & development"}
                 </span>
                 {/* Mobile-only specifications line: services left, year right. */}
-                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#e5e5e5] pt-4 text-[14px] font-normal text-[#1d1d1f] md:hidden">
+                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#898989] pt-4 text-[14px] font-normal text-[#1d1d1f] md:hidden">
                   <span>{row.services || "Design & development"}</span>
                   <span>{row.year || "2026"}</span>
                 </div>

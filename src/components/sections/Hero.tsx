@@ -10,6 +10,7 @@ import LiquidImage from "@/components/ui/LiquidImage";
 import TopNav from "@/components/ui/TopNav";
 import { useSiteContent } from "@/components/ContentProvider";
 import { resolveNavAppearance } from "@/lib/nav";
+import { PORTRAIT_FOCUS } from "@/lib/heroPortrait";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -61,22 +62,6 @@ const Reveal = ({ children }: { children: string }) => (
   </>
 );
 
-/** Focal point for the mobile crop: the subject's face, not the frame's centre.
- *
- *  Solved rather than eyeballed. The head's centre sits at x≈0.41 of the source
- *  art, and for a visible window of width `s` the anchor that puts a source
- *  point `p` at mid-screen is `(p - s/2) / (1 - s)`. At phone aspects s≈0.60,
- *  which lands this at ≈0.27 — and it is flat across 360-414px wide viewports,
- *  so one constant serves them all (head at 47-48% of screen, fully in frame).
- *
- *  Note it is NOT simply the head's own coordinate: the anchor is the fixed
- *  point of the crop, so it moves further from centre than the feature it is
- *  centring. Using 0.41 directly would leave the head at ~41%.
- *
- *  y stays at the default bottom anchor, which keeps the figure standing on the
- *  section's floor. Only consulted below `lg`, where the portrait covers. */
-const PORTRAIT_FOCUS = { x: 0.27 };
-
 const DEFAULT_NAME = "Priyanshu Roy";
 const DEFAULT_HEADING = "Brand Designer\n& Web Developer";
 const DEFAULT_PARAGRAPH = "Most sites look like\ntemplates. Mine don't.";
@@ -119,8 +104,9 @@ export default function Hero() {
      the face takes the crop out of the empty shoulder instead, keeping the head
      whole and landing it at ~48% — visually centred. See PORTRAIT_FOCUS.
 
-     LandingIntro's `isPortraitCovering` mirrors this exact query; the two must
-     agree or the intro's centre panel resolves onto the wrong rect.
+     The breakpoint and the focal point both live in @/lib/heroPortrait, shared
+     with LandingIntro: it fits its centre panel onto the rect this paints, so
+     any drift between the two desyncs the seam at the handoff.
 
      Starts `false` so SSR and the first client render match — `lg` is the
      layout the markup's base classes describe. */
@@ -470,7 +456,12 @@ export default function Hero() {
               <div
                 ref={marqueeInnerRef}
                 className="flex items-center w-fit whitespace-nowrap font-script text-white leading-[1.2] select-none py-2 lg:py-4 will-change-transform"
-                style={{ fontSize: "clamp(72px, 17vw, 240px)" }}
+                /* Floor and vw term are both the desktop values +21%: below
+                   ~424px the vw term sits under the floor, so on phones the
+                   floor is what actually renders and raising vw alone would
+                   do nothing there. The 240px ceiling is untouched, so wide
+                   desktop is unchanged. */
+                style={{ fontSize: "clamp(87px, 20.6vw, 240px)" }}
               >
                 <div className="flex items-center shrink-0">
                   <span>{marqueeText}</span>
