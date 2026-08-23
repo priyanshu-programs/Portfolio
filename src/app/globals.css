@@ -749,8 +749,10 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
 /* Zero-paint measurement target for the final fit.
    Flip.fit needs a real, measurable element to fit onto — there is no API for
    handing it a synthetic rect. The hero portrait's wrapper is the wrong target
-   because LiquidImage paints `object-contain object-bottom` inside it, so the
-   picture is letterboxed narrower than its box (up to 35% at tablet widths).
+   because at `lg` LiquidImage paints `object-contain object-bottom` inside it,
+   so the picture is letterboxed narrower than its box (up to 35% at tablet
+   widths). (Below `lg` the portrait covers instead, and the painted rect and
+   the box coincide — see getPaintedPortraitRect.)
    This proxy is positioned over the *painted* rect, so the centre panel lands
    on the picture rather than the box.
 

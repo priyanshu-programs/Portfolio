@@ -10,7 +10,7 @@ import LiquidImage from "@/components/ui/LiquidImage";
 import TopNav from "@/components/ui/TopNav";
 import { useSiteContent } from "@/components/ContentProvider";
 import { resolveNavAppearance } from "@/lib/nav";
-import { Fragment, useLayoutEffect, useRef } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import KineticLoader from "@/components/ui/KineticLoader";
@@ -61,6 +61,22 @@ const Reveal = ({ children }: { children: string }) => (
   </>
 );
 
+/** Focal point for the mobile crop: the subject's face, not the frame's centre.
+ *
+ *  Solved rather than eyeballed. The head's centre sits at x≈0.41 of the source
+ *  art, and for a visible window of width `s` the anchor that puts a source
+ *  point `p` at mid-screen is `(p - s/2) / (1 - s)`. At phone aspects s≈0.60,
+ *  which lands this at ≈0.27 — and it is flat across 360-414px wide viewports,
+ *  so one constant serves them all (head at 47-48% of screen, fully in frame).
+ *
+ *  Note it is NOT simply the head's own coordinate: the anchor is the fixed
+ *  point of the crop, so it moves further from centre than the feature it is
+ *  centring. Using 0.41 directly would leave the head at ~41%.
+ *
+ *  y stays at the default bottom anchor, which keeps the figure standing on the
+ *  section's floor. Only consulted below `lg`, where the portrait covers. */
+const PORTRAIT_FOCUS = { x: 0.27 };
+
 const DEFAULT_NAME = "Priyanshu Roy";
 const DEFAULT_HEADING = "Brand Designer\n& Web Developer";
 const DEFAULT_PARAGRAPH = "Most sites look like\ntemplates. Mine don't.";
@@ -95,6 +111,35 @@ export default function Hero() {
   const glowRef = useRef<HTMLDivElement>(null);
   const hasAnimatedRef = useRef(false);
 
+  /* Below `lg` the hero fills the viewport (h-[100dvh]). A ~0.45 phone viewport
+     can only be filled by this 0.75 portrait by cropping ~38% of its width —
+     that part is arithmetic. What matters is WHERE that crop is taken from: the
+     head spans x≈0.17-0.65 while the shoulders run nearly the full frame, so a
+     centred crop clips the face and pushes it to ~35% of screen. Anchoring on
+     the face takes the crop out of the empty shoulder instead, keeping the head
+     whole and landing it at ~48% — visually centred. See PORTRAIT_FOCUS.
+
+     LandingIntro's `isPortraitCovering` mirrors this exact query; the two must
+     agree or the intro's centre panel resolves onto the wrong rect.
+
+     Starts `false` so SSR and the first client render match — `lg` is the
+     layout the markup's base classes describe. */
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      setIsDesktop(mq.matches);
+      // The parallax triggers cached start/end against the previous height.
+      // They set invalidateOnRefresh, so a refresh is enough to re-measure.
+      ScrollTrigger.refresh();
+    };
+
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   useLayoutEffect(() => {
     let mounted = true;
     let handleReveal: (() => void) | null = null;
@@ -118,26 +163,45 @@ export default function Hero() {
        * The old CSS animation started before the hero entrance had finished,
        * which made Priyanshu Roy feel detached from the other reveals.
        */
-      // Matches the previous 40s CSS marquee loop more closely. The ticker
-      // uses px-per-frame, so this is intentionally faster than the old
-      // placeholder value while preserving the same visual direction.
-      let marqueeSpeed = -2.2;
-      let targetMarqueeSpeed = -2.2;
+      // Positive speed drifts the track right (the wordmark reads
+      // left-to-right); negative runs it right-to-left. The ticker steps in
+      // px-per-frame, normalised against a 60fps baseline below.
+      const MARQUEE_IDLE_SPEED = 2.2;
+      let marqueeSpeed = MARQUEE_IDLE_SPEED;
+      let targetMarqueeSpeed = MARQUEE_IDLE_SPEED;
       let marqueeX = 0;
 
+      // A document-wide trigger purely as a velocity source. The hero's own
+      // skew trigger below is scoped to `top top`/`bottom top`, so it goes
+      // quiet once the hero scrolls away — this one stays live for the whole
+      // page and keeps the reversal responsive wherever the user is.
+      const marqueeVelocityTracker = ScrollTrigger.create({
+        trigger: document.documentElement,
+        start: 0,
+        end: () => ScrollTrigger.maxScroll(window),
+      });
+
       const updateMarqueeSpeed = (scrollVelocity: number) => {
-        // ScrollTrigger reports positive velocity while the page is moving
-        // down. Downward scrolling intentionally reverses the marquee; the
-        // amount of reversal is proportional to the gesture's velocity.
-        targetMarqueeSpeed = scrollVelocity > 30
-          ? gsap.utils.clamp(0.9, 7.5, scrollVelocity / 180)
-          : -2.2;
+        // Any scroll gesture — up or down — reverses the wordmark to
+        // right-to-left, proportional to how hard the user is scrolling.
+        // Releasing the scroll settles it back to its left-to-right drift.
+        const speed = Math.abs(scrollVelocity);
+        targetMarqueeSpeed = speed > 30
+          ? -gsap.utils.clamp(0.9, 7.5, speed / 180)
+          : MARQUEE_IDLE_SPEED;
       };
 
       marqueeTicker = (_time, deltaTime) => {
         const track = marqueeInnerRef.current;
         const firstCopy = track?.firstElementChild as HTMLElement | null;
         if (!track || !firstCopy) return;
+
+        // Read velocity every frame rather than only from the hero's
+        // ScrollTrigger.onUpdate: that trigger stops firing once the hero
+        // scrolls past, which would freeze the marquee at whatever speed it
+        // last saw. Polling here also lets it settle back to the idle drift
+        // the moment the gesture ends.
+        updateMarqueeSpeed(marqueeVelocityTracker.getVelocity());
 
         marqueeSpeed += (targetMarqueeSpeed - marqueeSpeed) * 0.12;
         marqueeX += marqueeSpeed * (deltaTime / 16.67);
@@ -297,7 +361,7 @@ export default function Hero() {
         end: "bottom top",
         scrub: 0.8,
         onUpdate: (self) => {
-          updateMarqueeSpeed(self.getVelocity());
+          // Marquee speed is polled from the ticker; this trigger only skews.
           const skewVal = self.getVelocity() / -300;
           gsap.to(marqueeInnerRef.current, {
             skewX: gsap.utils.clamp(-4, 4, skewVal),
@@ -352,9 +416,9 @@ export default function Hero() {
 
       <section
         ref={sectionRef}
-        className="relative w-full bg-cream overflow-hidden min-h-[520px] lg:h-screen"
+        className="relative w-full bg-cream overflow-hidden h-[100dvh] min-h-[520px] lg:h-screen"
       >
-        <div ref={frameRef} className="relative w-full bg-cream min-h-[520px] lg:h-full">
+        <div ref={frameRef} className="relative w-full bg-cream h-[100dvh] min-h-[520px] lg:h-full">
           {/* ── Ambient Depth Glow ───────────────────── */}
           <div
             ref={glowRef}
@@ -379,11 +443,14 @@ export default function Hero() {
           <div
             ref={portraitRef}
             {...{ [HERO_PORTRAIT_ATTR]: "" }}
-            className="transition-hero-image absolute left-1/2 -translate-x-1/2 bottom-0 w-[95vw] sm:w-[80vw] lg:w-full lg:max-w-[750px] h-full z-10 pointer-events-none"
+            className="transition-hero-image absolute left-1/2 -translate-x-1/2 bottom-0 w-full lg:max-w-[750px] h-full z-10 pointer-events-none"
           >
             <LiquidImage
               src={portraitSrc}
               alt={name}
+              fit={isDesktop ? "contain" : "cover"}
+              focus={isDesktop ? undefined : PORTRAIT_FOCUS}
+              sizes="(max-width: 1024px) 100vw, 750px"
               className="w-full h-full pointer-events-auto"
             />
           </div>
@@ -392,7 +459,12 @@ export default function Hero() {
           <div
             ref={marqueeWrapRef}
             aria-hidden
-            className="pointer-events-none absolute left-0 w-full top-[58%] sm:top-[62%] lg:top-[79%] lg:-translate-y-1/2 z-20 mix-blend-difference"
+            /* Mobile offsets track the figure, not the box: under cover the
+               source's vertical fractions map ~1:1 to viewport %, putting the
+               chin at 38%, chest at 60% and the lower torso at 75%. The old
+               58%/62% predate the full-height portrait and now cut across the
+               chest. */
+            className="pointer-events-none absolute left-0 w-full top-[72%] sm:top-[74%] lg:top-[79%] lg:-translate-y-1/2 z-20 mix-blend-difference"
           >
             <div ref={marqueeRevealRef} className="w-full overflow-hidden will-change-transform">
               <div
@@ -443,7 +515,7 @@ export default function Hero() {
           {/* ── Intro Text Block ─────────────────────── */}
           <div
             ref={introWrapRef}
-            className="absolute z-30 left-0 bottom-8 sm:bottom-10 px-6 sm:px-8 lg:px-0 lg:relative lg:bottom-auto lg:left-[calc(50%+27vw)] lg:top-[38%] lg:w-[22vw] lg:max-w-[300px] mix-blend-difference lg:mix-blend-normal"
+            className="absolute z-30 left-0 bottom-8 sm:bottom-10 px-6 sm:px-8 lg:px-0 lg:bottom-auto lg:left-[calc(50%+27vw)] lg:top-[38%] lg:w-[22vw] lg:max-w-[300px] mix-blend-difference lg:mix-blend-normal"
           >
             <div ref={introRef}>
               <h1

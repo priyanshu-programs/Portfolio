@@ -77,16 +77,36 @@ const readPortraitAspect = (wrapper: HTMLElement): number => {
   return PORTRAIT_FALLBACK_ASPECT;
 };
 
+/** Mirrors the `lg:` breakpoint the hero uses to pick the portrait's fit mode.
+ *  Below it the hero's box is a full 100dvh and the portrait COVERS it, cropped
+ *  around the face (see `PORTRAIT_FOCUS` in Hero). At and above `lg` the
+ *  original contain layout is untouched. */
+const isPortraitCovering = () =>
+  typeof window !== "undefined" &&
+  !window.matchMedia("(min-width: 1024px)").matches;
+
 /**
  * The rect the portrait is actually *painted* in — not its wrapper's box.
  *
  * Deliberately the general `object-contain` form rather than assuming the
  * height-constrained case: a differently-shaped portrait from the CMS, or a
  * wrapper narrower than `height × aspect`, flips which axis constrains.
+ *
+ * ── MUST TRACK LiquidImage ───────────────────────────────────────────────
+ * The panel is fitted onto this rect, so it has to describe where the picture
+ * genuinely lands. Under `cover` the art overflows and is clipped by the
+ * wrapper's own `overflow: hidden`, so the visible rect IS the wrapper box —
+ * fitting to the larger uncropped art would overshoot and read as a jump at
+ * the seam. Under `contain` the art letterboxes inside the box, and the
+ * painted rect is the smaller inscribed one.
  */
 const getPaintedPortraitRect = (wrapper: HTMLElement) => {
   const box = wrapper.getBoundingClientRect();
   const aspect = readPortraitAspect(wrapper);
+
+  if (isPortraitCovering()) {
+    return { width: box.width, height: box.height, x: box.left, y: box.top };
+  }
 
   let width = box.height * aspect;
   let height = box.height;
@@ -1088,7 +1108,14 @@ export default function LandingIntro() {
                  contain and cover are the same picture. And `buildImageUrl`
                  (src/lib/sanity/image.ts) constrains WIDTH only — no crop — so
                  the CMS is free to serve a different ratio one day. Contain
-                 degrades to a letterbox then; cover would desync the seam. */
+                 degrades to a letterbox then; cover would desync the seam.
+
+                 The panel keeps `contain` on BOTH breakpoints even though the
+                 hero covers on mobile. That is not a desync: the panel's own
+                 box is 3/4 — the portrait's exact ratio — so contain and cover
+                 paint the identical picture inside it, and beat 7 fits that box
+                 onto the hero's covered rect as a whole. Matching the hero's
+                 crop here would mean cropping a box that has nothing to crop. */
               className={isCentre ? "object-contain object-bottom" : "object-cover"}
               aria-hidden="true"
             />

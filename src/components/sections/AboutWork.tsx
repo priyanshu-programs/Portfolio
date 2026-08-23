@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "@/components/transition/SmartLink";
@@ -66,6 +67,8 @@ const MoreWorkButton = () => {
 type WorkRow = {
   name: string;
   services?: string;
+  /** Shown only on the mobile card, paired with `services`. */
+  year?: string;
   image: string;
   slug?: string;
   bgColor?: string;
@@ -75,10 +78,10 @@ type WorkRow = {
 };
 
 const WORK_ROWS: WorkRow[] = [
-  { name: "TWICE", services: "Interaction & Development", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=640&auto=format&fit=crop" },
-  { name: "TWICE", services: "Interaction & Development", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=640&auto=format&fit=crop" },
-  { name: "TWICE", services: "Interaction & Development", image: "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=640&auto=format&fit=crop" },
-  { name: "TWICE", services: "Interaction & Development", image: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", services: "Interaction & Development", year: "2026", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", services: "Interaction & Development", year: "2026", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", services: "Interaction & Development", year: "2025", image: "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", services: "Interaction & Development", year: "2025", image: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=640&auto=format&fit=crop" },
 ];
 
 const DEFAULT_QUOTE =
@@ -105,6 +108,7 @@ export default function AboutWork() {
     return (homeWork ?? []).map((p) => ({
       name: p.title ?? "",
       services: p.services,
+      year: p.year,
       image: p.thumbnail ?? "",
       slug: p.slug,
       bgColor: p.bgColor,
@@ -309,13 +313,40 @@ export default function AboutWork() {
 
         <div>
           {workRows.map((row, idx) => {
+            // Below md this is a stacked card (image / title / meta); at md+ it
+            // becomes the original two-column list row. One tree, toggled by
+            // Tailwind rather than a matchMedia fork — see the mobile doctrine
+            // note in globals.css.
             const rowClassName =
-              "work-row group grid cursor-pointer grid-cols-[1fr_auto] items-center gap-4 border-b border-[#e5e5e5] py-14 md:grid-cols-[1.8fr_1.4fr]";
+              "work-row group block cursor-pointer py-8 md:grid md:grid-cols-[1.8fr_1.4fr] md:items-center md:gap-4 md:border-b md:border-[#e5e5e5] md:py-14";
+            const cardImage = row.hoverImage || row.image;
             const rowContent = (
               <>
-                <h2 className="text-[34px] font-normal leading-none tracking-[-0.02em] text-[#1d1d1f] transition-transform duration-300 ease-out group-hover:translate-x-3 sm:text-[40px] md:text-[46px]">
+                {/* Mobile-only thumbnail. The inset window mirrors the cursor
+                    preview card's geometry (400x360 card, 352x220 window), so a
+                    card is the same object as the desktop hover popout. */}
+                <div
+                  className="relative aspect-[400/360] w-full overflow-hidden rounded-[2px] md:hidden"
+                  style={{ backgroundColor: row.hoverBg ?? row.bgColor ?? "#f1f1f1" }}
+                >
+                  <div className="absolute inset-x-[6%] inset-y-[19.44%] overflow-hidden rounded-[2px]">
+                    {/* `cardImage` is `||`-folded upstream: an unset CMS image
+                        resolves to "", which would render <img src=""> instead
+                        of falling through to the colour block. */}
+                    {cardImage && (
+                      <Image
+                        src={cardImage}
+                        alt={row.name}
+                        fill
+                        sizes="100vw"
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                </div>
+                <h2 className="mt-6 text-[34px] font-normal leading-none tracking-[-0.02em] text-[#1d1d1f] transition-transform duration-300 ease-out group-hover:translate-x-3 sm:text-[40px] md:mt-0 md:text-[46px]">
                   <span>{row.name}</span>
-                  <sup className="ml-1 text-[0.4em] leading-none">
+                  <sup className="ml-1 hidden text-[0.4em] leading-none md:inline">
                     <svg
                       width="15"
                       height="15"
@@ -336,6 +367,11 @@ export default function AboutWork() {
                 <span className="hidden justify-self-end text-[17px] font-normal text-[#1d1d1f] md:inline">
                   {row.services || "Design & development"}
                 </span>
+                {/* Mobile-only specifications line: services left, year right. */}
+                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#e5e5e5] pt-4 text-[14px] font-normal text-[#1d1d1f] md:hidden">
+                  <span>{row.services || "Design & development"}</span>
+                  <span>{row.year || "2026"}</span>
+                </div>
               </>
             );
 
