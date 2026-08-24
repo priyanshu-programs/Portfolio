@@ -327,12 +327,14 @@ export default function WorkIndex({ projects, tags }: WorkIndexProps) {
                     )}
                   </div>
                 </div>
-                <h2 className="mt-6 text-[24px] tracking-[-0.02em] text-[#1d1d1f]">
+                <h2 className="mt-6 text-[39px] font-medium leading-[1.05] tracking-[-0.02em] text-[#1d1d1f] sm:text-[45px]">
                   {project.title}
                 </h2>
-                <div className="mt-3 flex items-center justify-between border-t border-[#e5e5e5] pt-3 text-[15px] text-[#1d1d1f]/70">
-                  <span>{project.category}</span>
-                  <span>{project.year}</span>
+                <div className="mt-3 flex items-center justify-between border-t border-[#e5e5e5] pt-3">
+                  <span className="text-[18px] font-medium text-[#1d1d1f]/60">
+                    {project.category}
+                  </span>
+                  <span className="text-[18px] font-medium text-[#1d1d1f]/60">{project.year}</span>
                 </div>
               </ProjectRow>
             ))}

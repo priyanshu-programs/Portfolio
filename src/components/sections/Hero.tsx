@@ -11,7 +11,8 @@ import TopNav from "@/components/ui/TopNav";
 import { useSiteContent } from "@/components/ContentProvider";
 import { resolveNavAppearance } from "@/lib/nav";
 import { PORTRAIT_FOCUS } from "@/lib/heroPortrait";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useIsDesktop } from "@/lib/useMediaQuery";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import KineticLoader from "@/components/ui/KineticLoader";
@@ -109,30 +110,29 @@ export default function Hero() {
      any drift between the two desyncs the seam at the handoff.
 
      Starts `false` so SSR and the first client render match — `lg` is the
-     layout the markup's base classes describe. */
-  const [isDesktop, setIsDesktop] = useState(false);
+     layout the markup's base classes describe.
 
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const sync = () => {
-      setIsDesktop(mq.matches);
-      // The parallax triggers cached start/end against the previous height.
-      // They set invalidateOnRefresh, so a refresh is enough to re-measure.
-      ScrollTrigger.refresh();
-    };
-
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
+     The shared hook rather than a local matchMedia subscription: it owns the
+     same DESKTOP_QUERY and already defers its ScrollTrigger.refresh() by a
+     frame. The hand-rolled copy that used to live here refreshed inline, right
+     after its own setState, which put a full re-measure of every pinned trigger
+     inside the commit that reshapes the page at the breakpoint. Nothing here
+     needs the refresh to be synchronous — `isDesktop` only picks props below. */
+  const isDesktop = useIsDesktop();
 
   useLayoutEffect(() => {
     let mounted = true;
     let handleReveal: (() => void) | null = null;
     let marqueeTicker: ((time: number, deltaTime: number) => void) | null = null;
 
-    // Next can restore cached routes on browser back/forward while preserving refs.
-    // Reset the reveal guard whenever the effect re-activates so the intro can play again.
+    // Reset the reveal guard whenever the effect re-activates, so a later mount
+    // is never left waiting on a guard a previous one set.
+    //
+    // This is cheap insurance rather than a live case: a 404 round-trip crosses
+    // a document boundary in both directions (Next's router turns the non-200
+    // RSC response into `location.assign`), so the Back that follows brings back
+    // either a fresh document with fresh refs, or a bfcache restore in which this
+    // effect does not re-run at all. Neither path can carry a stale `true` in.
     hasAnimatedRef.current = false;
 
     const ctx = gsap.context(() => {
@@ -456,12 +456,12 @@ export default function Hero() {
               <div
                 ref={marqueeInnerRef}
                 className="flex items-center w-fit whitespace-nowrap font-script text-white leading-[1.2] select-none py-2 lg:py-4 will-change-transform"
-                /* Floor and vw term are both the desktop values +21%: below
-                   ~424px the vw term sits under the floor, so on phones the
-                   floor is what actually renders and raising vw alone would
-                   do nothing there. The 240px ceiling is untouched, so wide
-                   desktop is unchanged. */
-                style={{ fontSize: "clamp(87px, 20.6vw, 240px)" }}
+                /* Floor and vw term are both 20% above the desktop-derived
+                   base: below ~424px the vw term sits under the floor, so on
+                   phones the floor is what actually renders and raising vw
+                   alone would do nothing there. The 240px ceiling is
+                   untouched, so wide desktop is unchanged. */
+                style={{ fontSize: "clamp(104px, 24.7vw, 240px)" }}
               >
                 <div className="flex items-center shrink-0">
                   <span>{marqueeText}</span>
@@ -501,6 +501,17 @@ export default function Hero() {
               </span>
               <KineticLoader text={loaderText} />
             </div>
+          </Link>
+
+          {/* ── Mobile "Let's talk" arrow ─────────────── */}
+          <Link
+            href="/contact"
+            aria-label="Open to projects, let's talk"
+            className="lg:hidden absolute z-30 right-0 bottom-8 sm:bottom-10 px-6 sm:px-8 text-white mix-blend-difference"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="28" height="28">
+              <path d="M6 18L18 6M18 6H8M18 6V16" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            </svg>
           </Link>
 
           {/* ── Intro Text Block ─────────────────────── */}

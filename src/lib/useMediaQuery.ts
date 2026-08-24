@@ -24,6 +24,10 @@ export const DESKTOP_QUERY = "(min-width: 1024px)";
  * only shape that cannot mismatch. Callers must therefore treat `false` as
  * "narrow, or not yet measured" — fine for gating a mount, wrong for anything
  * that must be correct during the very first paint.
+ *
+ * Also re-syncs on a bfcache restore, where no effect re-runs and no `change`
+ * event fires — see the comment on the `pageshow` listener below for why the
+ * restored value can otherwise be wrong for the restored viewport.
  */
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -34,7 +38,32 @@ export function useMediaQuery(query: string): boolean {
 
     sync();
     mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+
+    /* A bfcache restore replays no effects and fires no `change` event, but the
+       value it restores can disagree with the viewport it restores into: the
+       initial `false` above is a construction, not a measurement, so a document
+       frozen before this hook had settled comes back claiming "narrow" on a
+       desktop window. Callers fork layout on that answer — Hero picks the
+       portrait's `fit`/`focus` from it, so a stale `false` renders the desktop
+       hero with a mobile cover-crop and the marquee at its phone offset.
+
+       Reachable on the 404 round-trip specifically, because arriving at an
+       unknown route is an MPA navigation (Next's router sees the non-200 RSC
+       response and calls `location.assign`), which makes the Back that follows a
+       cross-document traversal rather than a route change. Nothing in React
+       re-runs on the way back.
+
+       Guarded on `persisted` so an ordinary load does not pay for a second
+       setState: on a fresh document the effect body has already just synced. */
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) sync();
+    };
+    window.addEventListener("pageshow", onPageShow);
+
+    return () => {
+      mq.removeEventListener("change", sync);
+      window.removeEventListener("pageshow", onPageShow);
+    };
   }, [query]);
 
   return matches;
@@ -67,10 +96,15 @@ export function useIsDesktop(): boolean {
       return;
     }
 
-    /* Sections mount and unmount in this same commit, and child effects run
-       before the parent's - so by the time this runs, the DOM is already in
-       its new shape and the measurement is the correct one. */
-    ScrollTrigger.refresh();
+    /* Deferred a frame rather than run inline. Child effects do run before the
+       parent's, so the DOM is already in its new shape by the time this fires -
+       but "already reshaped" is not the same as "done being reshaped". React is
+       still inside the commit that deletes the outgoing section's host nodes,
+       and a refresh here re-measures every live trigger, which for a pinned one
+       means touching the DOM around a node React is midway through removing.
+       A frame later the commit is closed and the measurement is just as correct. */
+    const raf = requestAnimationFrame(() => ScrollTrigger.refresh());
+    return () => cancelAnimationFrame(raf);
   }, [isDesktop]);
 
   return isDesktop;

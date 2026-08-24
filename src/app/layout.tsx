@@ -104,6 +104,13 @@ export default async function RootLayout({
               {children}
               <SiteFooter />
             </SmoothScroll>
+            {/*
+              Keep DOM overlays outside the route subtree. Browser extensions
+              may inspect or rewrite page content while React is unmounting a
+              route; a stable host prevents those mutations from racing with
+              deletion of route-owned nodes.
+            */}
+            <div id="app-overlay-root" aria-hidden="true" />
             <FollowCursor zIndex={10050} />
             <FloatingMenu />
             <RouteLoadingOverlay />

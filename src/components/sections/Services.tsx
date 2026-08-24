@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useSiteContent } from "@/components/ContentProvider";
@@ -122,6 +123,12 @@ export default function Services() {
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const visualRefs = useRef<(HTMLDivElement | null)[]>([]);
   const contentRefs = useRef<(HTMLDivElement | null)[]>([]);
+  /* The 3D flip wrapper around each card's two faces. Held as a real ref
+     rather than derived with `visual.parentElement`: the cleanup below runs
+     while React may already have detached the visual, at which point
+     `parentElement` is null and killTweensOf silently skips the wrapper,
+     leaving live tweens pointed at nodes React is deleting. */
+  const flipWrapperRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -134,6 +141,9 @@ export default function Services() {
         const cards = cardRefs.current.filter(Boolean) as HTMLElement[];
         const visuals = visualRefs.current.filter(Boolean) as HTMLDivElement[];
         const contents = contentRefs.current.filter(Boolean) as HTMLDivElement[];
+        const flipWrappers = flipWrapperRefs.current.filter(
+          Boolean
+        ) as HTMLDivElement[];
 
         if (
           !stage ||
@@ -141,7 +151,8 @@ export default function Services() {
           !deck ||
           cards.length !== 3 ||
           visuals.length !== 3 ||
-          contents.length !== 3
+          contents.length !== 3 ||
+          flipWrappers.length !== 3
         ) {
           return;
         }
@@ -169,8 +180,6 @@ export default function Services() {
         gsap.set(cards[0], { borderRadius: "8px 0 0 8px", zIndex: 2 });
         gsap.set(cards[1], { borderRadius: "0px", zIndex: 3 });
         gsap.set(cards[2], { borderRadius: "0 8px 8px 0", zIndex: 2 });
-        const flipWrappers = visuals.map((el) => el.parentElement as HTMLDivElement);
-
         gsap.set(flipWrappers, {
           rotateY: 0,
           scale: 1,
@@ -205,6 +214,12 @@ export default function Services() {
             start: "top top",
             end: "+=240%",
             pin: true,
+            /* Default `pinSpacing` deliberately. It was briefly set to false
+               while chasing a removeChild crash blamed on the spacer's
+               re-parenting; that theory was wrong, and losing the spacer's
+               contributed height shortened the page enough that this pin
+               released early and the following section rode up over the cards
+               mid-timeline. The spacer is what buys the +=240% its runway. */
             scrub: 0.85,
             anticipatePin: 1,
             invalidateOnRefresh: true,
@@ -303,7 +318,6 @@ export default function Services() {
         return () => {
           tl.scrollTrigger?.kill();
           tl.kill();
-          const flipWrappers = visuals.map((el) => el.parentElement as HTMLDivElement);
           gsap.killTweensOf([heading, deck, ...cards, ...visuals, ...contents, ...flipWrappers]);
         };
       });
@@ -339,14 +353,13 @@ export default function Services() {
         >
           {headingOverride ?? (
             <>
-              {`Your website is \nthe first impression \nfor `}
+              {`Your website is the first impression for `}
               <span className="inline-block align-middle mx-2 w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
                 <Image src={ornamentSrc} alt="ornament" fill className="object-cover" />
               </span>
-              {` every client \n`}
+              {` every client `}
               <span className="text-[#858EA3]">you will ever have.</span>
-              <span aria-hidden className="mx-auto my-3 block h-px w-8 bg-[#c9c9c9]" />
-              {`It should be \nworth having.`}
+              {`It should be worth having.`}
             </>
           )}
         </h2>
@@ -363,8 +376,10 @@ export default function Services() {
 
         <div className="mx-auto mt-8 grid max-w-[720px] grid-cols-1 gap-4 sm:grid-cols-3">
           {cards.map((card) => (
-            <article
+            <Link
               key={card.title}
+              href="/contact"
+              aria-label={`${card.title.replace(/\n/g, " ")} — get in touch`}
               className="flex min-h-[286px] flex-col justify-between rounded-[8px] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]"
               style={{ backgroundColor: card.bg, color: card.text }}
             >
@@ -389,7 +404,7 @@ export default function Services() {
                   {card.copy}
                 </p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </div>
@@ -420,8 +435,10 @@ export default function Services() {
             style={{ gap: 0, width: "46vw" }}
           >
             {cards.map((card, index) => (
-              <article
+              <Link
                 key={card.title}
+                href="/contact"
+                aria-label={`${card.title.replace(/\n/g, " ")} — get in touch`}
                 ref={(el) => {
                   cardRefs.current[index] = el;
                 }}
@@ -439,6 +456,9 @@ export default function Services() {
                 }}
               >
                 <div
+                  ref={(el) => {
+                    flipWrapperRefs.current[index] = el;
+                  }}
                   className="absolute inset-0 shadow-[0_28px_80px_rgba(0,0,0,0.36)] [transform-style:preserve-3d] will-change-transform"
                   style={{ borderRadius: "inherit", backgroundColor: card.bg }}
                 >
@@ -498,7 +518,7 @@ export default function Services() {
                     </div>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>

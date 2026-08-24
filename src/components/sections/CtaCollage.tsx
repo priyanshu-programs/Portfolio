@@ -82,6 +82,11 @@ export default function CtaCollage() {
   const handRightRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    /* Captured now rather than read in the cleanup: by teardown React may have
+       already detached the node and nulled the ref, and the cleanup below has
+       to match the trigger against the very element it was created for. */
+    const container = containerRef.current;
+
     const ctx = gsap.context(() => {
       // Pin the section and animate Z values
       const tl = gsap.timeline({
@@ -249,7 +254,18 @@ export default function CtaCollage() {
       }
     }, containerRef);
 
-    return () => ctx.revert();
+    /* Kill the trigger before reverting the context, and revert it explicitly
+       with `true` — same shape as NextProject's cleanup. This section unmounts
+       at the breakpoint, so its cleanup runs in the very commit React deletes
+       the host node; leaving the pin's spacer or the stage's inline geometry
+       to be torn down implicitly would mean GSAP and React both reaching for
+       the same nodes in the same commit. */
+    return () => {
+      ScrollTrigger.getAll()
+        .filter((t) => t.trigger === container)
+        .forEach((t) => t.kill(true));
+      ctx.revert();
+    };
   }, []);
 
   return (
