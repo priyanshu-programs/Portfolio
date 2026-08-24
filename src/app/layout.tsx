@@ -1,5 +1,6 @@
 import { Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
+import { ViewTransitions } from "next-view-transitions";
 import SmoothScroll from "@/components/SmoothScroll";
 import FollowCursor from "@/components/ui/FollowCursor";
 import FloatingMenu from "@/components/ui/FloatingMenu";
@@ -48,7 +49,7 @@ export default async function RootLayout({
   const content = await getSiteContent();
 
   return (
-    <>
+    <ViewTransitions>
       {/* `suppressHydrationWarning` on both elements below is load-bearing, not
           boilerplate: the arming script stamps a class on <html> before React
           hydrates, so the client's className cannot match the server HTML.
@@ -116,6 +117,6 @@ export default async function RootLayout({
           </ContentProvider>
         </body>
       </html>
-    </>
+    </ViewTransitions>
   );
 }

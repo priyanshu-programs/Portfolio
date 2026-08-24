@@ -55,9 +55,9 @@ const DEFAULT_SLOTS: AboutSlot[] = [
  * picture sliding, which is exactly what stops it looking like parallax.
  */
 const SLOTS = [
-  { rate: 0.85, width: "385px" },
-  { rate: 1.3, width: "385px" },
-  { rate: 1.0, width: "385px" },
+  { rate: 0.85 },
+  { rate: 1.3 },
+  { rate: 1.0 },
 ] as const;
 
 /**
@@ -375,7 +375,7 @@ export default function AboutStage() {
       // innerThrow: the window's contents — a 1.19x-scaled, still fully
       // uncropped (object-contain) image — sliding inside the fixed frame,
       // capped so the scaled overflow never runs out and shows a gap.
-      const boxThrow = isDesktop ? 84 : 34;
+      const boxThrow = isDesktop ? 84 : 0;
       const innerThrow = isDesktop ? 39 : 20;
       const scrub = 0.35;
 
@@ -544,14 +544,13 @@ export default function AboutStage() {
             return (
               <div
                 key={`${src}-${i}`}
-                className={`about-frame-wrapper relative w-full will-change-transform lg:w-auto ${i % 2 === 0 ? "lg:self-end" : "lg:self-start"
+                className={`about-frame-wrapper relative w-full will-change-transform lg:w-[385px] ${i % 2 === 0 ? "lg:self-end" : "lg:self-start"
                   }`}
-                style={{
-                  aspectRatio: "385 / 575",
-                  width: slot.width,
-                }}
               >
-                <div className="about-frame relative h-full w-full will-change-transform">
+                <div
+                  className="about-frame relative w-full will-change-transform"
+                  style={{ aspectRatio: "385 / 575" }}
+                >
                   <div className="relative h-full w-full">
                     <div className="about-slot-img relative h-full w-full overflow-hidden">
                       <div
@@ -562,7 +561,7 @@ export default function AboutStage() {
                           src={src}
                           alt={entry.alt ?? ""}
                           fill
-                          sizes="(max-width: 1023px) 33vw, 27vw"
+                          sizes="(max-width: 1023px) 90vw, 27vw"
                           className="object-contain"
                         />
                       </div>

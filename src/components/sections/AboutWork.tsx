@@ -7,7 +7,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "@/components/transition/SmartLink";
 import { useSiteContent } from "@/components/ContentProvider";
 import HoverPreviewCard from "@/components/ui/HoverPreviewCard";
-import { GlassButton } from "@/components/ui/glass-button";
+import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -28,37 +28,17 @@ const Reveal = ({ children }: { children: string }) => (
 );
 
 const MoreWorkButton = () => {
-  const buttonRef = useRef<HTMLAnchorElement>(null);
   // Same source the /work index counts from, so the two numbers never drift.
   // Not homeWork — that query is sliced to the 4 pinned projects.
   const workCount = useSiteContent()?.workProjects?.length ?? 0;
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    buttonRef.current.style.setProperty('--mouse-x', `${x}px`);
-    buttonRef.current.style.setProperty('--mouse-y', `${y}px`);
-  };
-
   return (
-    <Link
-      href="/work"
-      className="pearl-btn block"
-      ref={buttonRef}
-      onMouseMove={handleMouseMove}
-    >
-      <div className="pearl-btn-spotlight" />
-      <div className="wrap">
-        <p>
-          More work
-          {workCount > 0 && (
-            <sup className="text-[0.6em] -translate-y-[0.3em]"> {workCount}</sup>
-          )}
-        </p>
-      </div>
-    </Link>
+    <LiquidMetalButton as={Link} href="/work" label="More work">
+      More work
+      {workCount > 0 && (
+        <sup className="text-[0.6em] -translate-y-[0.3em]"> {workCount}</sup>
+      )}
+    </LiquidMetalButton>
   );
 };
 
@@ -243,7 +223,7 @@ export default function AboutWork() {
         {/* Left Main Text — word-by-word reveal */}
         <div className="lg:w-[55%]">
           <p
-            className="text-about-quote leading-[1.35] text-black m-0"
+            className="text-[clamp(1.462rem,2.328vw+0.83rem,2.708rem)] leading-[1.35] text-black m-0 sm:text-about-quote"
             style={{
               fontFamily: "var(--font-helv)",
               fontWeight: 300,
@@ -253,7 +233,7 @@ export default function AboutWork() {
           >
             {quoteLines.map((line, i) => (
               <Fragment key={i}>
-                {i > 0 && <br />}
+                {i > 0 && <br className="hidden sm:inline" />}
                 <Reveal>{line}</Reveal>
               </Fragment>
             ))}
@@ -274,15 +254,13 @@ export default function AboutWork() {
           >
             {subParagraphLines.map((line, i) => (
               <Fragment key={i}>
-                {i > 0 && <br />}
+                {i > 0 && <br className="hidden sm:inline" />}
                 {line}
               </Fragment>
             ))}
           </p>
-          <div className="reveal-text mt-8 flex justify-center lg:justify-start items-center">
-            <GlassButton as={Link} href="/about" aria-label="About me">
-              About me
-            </GlassButton>
+          <div className="reveal-text mt-8 flex justify-start items-center">
+            <LiquidMetalButton as={Link} href="/about" aria-label="About me" label="About me" />
           </div>
         </div>
       </div>
@@ -344,7 +322,7 @@ export default function AboutWork() {
                     )}
                   </div>
                 </div>
-                <h2 className="mt-6 text-[34px] font-normal leading-none tracking-[-0.02em] text-[#1d1d1f] transition-transform duration-300 ease-out group-hover:translate-x-3 sm:text-[40px] md:mt-0 md:text-[46px]">
+                <h2 className="mt-6 text-[34px] font-medium leading-none tracking-[-0.02em] text-[#1d1d1f] transition-transform duration-300 ease-out group-hover:translate-x-3 sm:text-[40px] md:mt-0 md:text-[46px]">
                   <span>{row.name}</span>
                   <sup className="ml-1 hidden text-[0.4em] leading-none md:inline">
                     <svg
@@ -368,9 +346,11 @@ export default function AboutWork() {
                   {row.services || "Design & development"}
                 </span>
                 {/* Mobile-only specifications line: services left, year right. */}
-                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#898989] pt-4 text-[14px] font-normal text-[#1d1d1f] md:hidden">
-                  <span>{row.services || "Design & development"}</span>
-                  <span>{row.year || "2026"}</span>
+                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#898989] pt-4 md:hidden">
+                  <span className="text-[14px] font-medium text-[#1d1d1f]/60">
+                    {row.services || "Design & development"}
+                  </span>
+                  <span className="text-[14px] font-medium text-[#1d1d1f]/60">{row.year || "2026"}</span>
                 </div>
               </>
             );

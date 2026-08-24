@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useTransitionRouter } from "next-view-transitions";
 import Link from "@/components/transition/SmartLink";
 import ScrollCue from "@/components/ui/ScrollCue";
 import {
@@ -125,7 +125,7 @@ export default function NextProject({
   /** Shown at the left of the chrome: the project being left behind. */
   currentTitle?: string;
 }) {
-  const router = useRouter();
+  const router = useTransitionRouter();
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const coverRef = useRef<HTMLDivElement>(null);

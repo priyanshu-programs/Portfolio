@@ -132,7 +132,7 @@ export default function Footer() {
           the card's left/right margins at every viewport width. */}
       <div
         ref={signatureAreaRef}
-        className="relative flex-1 no-overflow px-4 sm:px-6 lg:px-[26px]"
+        className="relative flex-1 min-h-[320px] no-overflow px-4 sm:px-6 lg:px-[26px]"
       >
         <ShaderSignatureText
           text={name}

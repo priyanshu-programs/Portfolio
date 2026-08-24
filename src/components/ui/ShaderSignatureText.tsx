@@ -390,7 +390,7 @@ export default function ShaderSignatureText({
       ref={containerRef}
       // No mix-blend-difference — the canvas draws ink-coloured glyphs on a
       // transparent background, which renders correctly over any background.
-      className={`relative inline-block px-[0.04em] py-[0.18em] ${className}`}
+      className={`inline-block px-[0.04em] py-[0.18em] ${className}`}
       style={style}
     >
       {/* Hidden fallback text — visible only until WebGL is ready */}

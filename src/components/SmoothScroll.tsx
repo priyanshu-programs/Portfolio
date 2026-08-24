@@ -91,6 +91,15 @@ export default function SmoothScroll({
     let raf = 0;
 
     const resync = () => {
+      // Settle any advance the document was frozen mid-way through, for the same
+      // reason the route effect below does it: a bfcache restore replays no
+      // effects, so nothing else would ever release the lock. Lenis's `isStopped`
+      // discards all input and `.lenis-stopped` puts `overflow: hidden` on
+      // <html>, which would restore the page completely dead — and would also
+      // make the refresh below measure the document through a collapsed extent.
+      // Idempotent, so it is safe on every wake, advance or not.
+      settleCaseStudyAdvance();
+
       raf = requestAnimationFrame(() => {
         lenisRef.current?.resize();
         ScrollTrigger.refresh();

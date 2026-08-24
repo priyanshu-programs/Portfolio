@@ -16,6 +16,7 @@
     "sanity:delete-placeholders": "node --env-file=.env.local --import tsx scripts/sanity/delete-placeholder-projects.mts"
   },
   "dependencies": {
+    "@paper-design/shaders": "^0.0.80",
     "@sanity/client": "^7.23.2",
     "@sanity/color-input": "^6.0.20",
     "@sanity/image-url": "^2.1.1",

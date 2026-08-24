@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useSiteContent } from "@/components/ContentProvider";
@@ -352,14 +353,13 @@ export default function Services() {
         >
           {headingOverride ?? (
             <>
-              {`Your website is \nthe first impression \nfor `}
+              {`Your website is the first impression for `}
               <span className="inline-block align-middle mx-2 w-[2.8em] h-[1em] relative overflow-hidden rounded-[2em] top-[-0.1em]">
                 <Image src={ornamentSrc} alt="ornament" fill className="object-cover" />
               </span>
-              {` every client \n`}
+              {` every client `}
               <span className="text-[#858EA3]">you will ever have.</span>
-              <span aria-hidden className="mx-auto my-3 block h-px w-8 bg-[#c9c9c9]" />
-              {`It should be \nworth having.`}
+              {`It should be worth having.`}
             </>
           )}
         </h2>
@@ -376,8 +376,10 @@ export default function Services() {
 
         <div className="mx-auto mt-8 grid max-w-[720px] grid-cols-1 gap-4 sm:grid-cols-3">
           {cards.map((card) => (
-            <article
+            <Link
               key={card.title}
+              href="/contact"
+              aria-label={`${card.title.replace(/\n/g, " ")} — get in touch`}
               className="flex min-h-[286px] flex-col justify-between rounded-[8px] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]"
               style={{ backgroundColor: card.bg, color: card.text }}
             >
@@ -402,7 +404,7 @@ export default function Services() {
                   {card.copy}
                 </p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </div>
@@ -433,8 +435,10 @@ export default function Services() {
             style={{ gap: 0, width: "46vw" }}
           >
             {cards.map((card, index) => (
-              <article
+              <Link
                 key={card.title}
+                href="/contact"
+                aria-label={`${card.title.replace(/\n/g, " ")} — get in touch`}
                 ref={(el) => {
                   cardRefs.current[index] = el;
                 }}
@@ -514,7 +518,7 @@ export default function Services() {
                     </div>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>
