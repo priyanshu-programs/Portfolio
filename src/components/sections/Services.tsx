@@ -205,11 +205,26 @@ export default function Services() {
             start: "top top",
             end: "+=240%",
             pin: true,
+            /* No spacer, and pinned by transform rather than position:fixed.
+               This is a correctness fix, not a layout preference. With the
+               default `pinSpacing`, ScrollTrigger injects a .pin-spacer div and
+               moves `stage` inside it, while React still records the enclosing
+               <section> as its parent. This pin lives inside the
+               `(min-width: 1024px)` branch below, so it is built on the way to
+               wide and torn down on the way to narrow - and that teardown
+               re-parents a React-owned node in a matchMedia handler firing on
+               the same tick React is committing its own breakpoint changes,
+               which is how removeChild ends up aimed at the wrong parent.
+               The stage already carries h-[100dvh] min-h-[680px], so the
+               spacer's contributed height bought nothing. */
+            pinSpacing: false,
+            pinType: "transform",
             scrub: 0.85,
             anticipatePin: 1,
             invalidateOnRefresh: true,
-            // Pinned triggers change document height via their .pin-spacer, so
-            // they must refresh before anything below them measures the page.
+            // Still first to refresh: this trigger owns a full-viewport stage,
+            // so anything measuring below it wants this one's start/end settled
+            // before it reads its own.
             refreshPriority: 1,
           },
           defaults: { ease: "none" },

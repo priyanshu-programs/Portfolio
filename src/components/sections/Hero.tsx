@@ -11,7 +11,8 @@ import TopNav from "@/components/ui/TopNav";
 import { useSiteContent } from "@/components/ContentProvider";
 import { resolveNavAppearance } from "@/lib/nav";
 import { PORTRAIT_FOCUS } from "@/lib/heroPortrait";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useIsDesktop } from "@/lib/useMediaQuery";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import KineticLoader from "@/components/ui/KineticLoader";
@@ -109,22 +110,15 @@ export default function Hero() {
      any drift between the two desyncs the seam at the handoff.
 
      Starts `false` so SSR and the first client render match — `lg` is the
-     layout the markup's base classes describe. */
-  const [isDesktop, setIsDesktop] = useState(false);
+     layout the markup's base classes describe.
 
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const sync = () => {
-      setIsDesktop(mq.matches);
-      // The parallax triggers cached start/end against the previous height.
-      // They set invalidateOnRefresh, so a refresh is enough to re-measure.
-      ScrollTrigger.refresh();
-    };
-
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
+     The shared hook rather than a local matchMedia subscription: it owns the
+     same DESKTOP_QUERY and already defers its ScrollTrigger.refresh() by a
+     frame. The hand-rolled copy that used to live here refreshed inline, right
+     after its own setState, which put a full re-measure of every pinned trigger
+     inside the commit that reshapes the page at the breakpoint. Nothing here
+     needs the refresh to be synchronous — `isDesktop` only picks props below. */
+  const isDesktop = useIsDesktop();
 
   useLayoutEffect(() => {
     let mounted = true;
