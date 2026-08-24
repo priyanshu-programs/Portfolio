@@ -122,6 +122,12 @@ export default function Services() {
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const visualRefs = useRef<(HTMLDivElement | null)[]>([]);
   const contentRefs = useRef<(HTMLDivElement | null)[]>([]);
+  /* The 3D flip wrapper around each card's two faces. Held as a real ref
+     rather than derived with `visual.parentElement`: the cleanup below runs
+     while React may already have detached the visual, at which point
+     `parentElement` is null and killTweensOf silently skips the wrapper,
+     leaving live tweens pointed at nodes React is deleting. */
+  const flipWrapperRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -134,6 +140,9 @@ export default function Services() {
         const cards = cardRefs.current.filter(Boolean) as HTMLElement[];
         const visuals = visualRefs.current.filter(Boolean) as HTMLDivElement[];
         const contents = contentRefs.current.filter(Boolean) as HTMLDivElement[];
+        const flipWrappers = flipWrapperRefs.current.filter(
+          Boolean
+        ) as HTMLDivElement[];
 
         if (
           !stage ||
@@ -141,7 +150,8 @@ export default function Services() {
           !deck ||
           cards.length !== 3 ||
           visuals.length !== 3 ||
-          contents.length !== 3
+          contents.length !== 3 ||
+          flipWrappers.length !== 3
         ) {
           return;
         }
@@ -169,8 +179,6 @@ export default function Services() {
         gsap.set(cards[0], { borderRadius: "8px 0 0 8px", zIndex: 2 });
         gsap.set(cards[1], { borderRadius: "0px", zIndex: 3 });
         gsap.set(cards[2], { borderRadius: "0 8px 8px 0", zIndex: 2 });
-        const flipWrappers = visuals.map((el) => el.parentElement as HTMLDivElement);
-
         gsap.set(flipWrappers, {
           rotateY: 0,
           scale: 1,
@@ -205,26 +213,17 @@ export default function Services() {
             start: "top top",
             end: "+=240%",
             pin: true,
-            /* No spacer, and pinned by transform rather than position:fixed.
-               This is a correctness fix, not a layout preference. With the
-               default `pinSpacing`, ScrollTrigger injects a .pin-spacer div and
-               moves `stage` inside it, while React still records the enclosing
-               <section> as its parent. This pin lives inside the
-               `(min-width: 1024px)` branch below, so it is built on the way to
-               wide and torn down on the way to narrow - and that teardown
-               re-parents a React-owned node in a matchMedia handler firing on
-               the same tick React is committing its own breakpoint changes,
-               which is how removeChild ends up aimed at the wrong parent.
-               The stage already carries h-[100dvh] min-h-[680px], so the
-               spacer's contributed height bought nothing. */
-            pinSpacing: false,
-            pinType: "transform",
+            /* Default `pinSpacing` deliberately. It was briefly set to false
+               while chasing a removeChild crash blamed on the spacer's
+               re-parenting; that theory was wrong, and losing the spacer's
+               contributed height shortened the page enough that this pin
+               released early and the following section rode up over the cards
+               mid-timeline. The spacer is what buys the +=240% its runway. */
             scrub: 0.85,
             anticipatePin: 1,
             invalidateOnRefresh: true,
-            // Still first to refresh: this trigger owns a full-viewport stage,
-            // so anything measuring below it wants this one's start/end settled
-            // before it reads its own.
+            // Pinned triggers change document height via their .pin-spacer, so
+            // they must refresh before anything below them measures the page.
             refreshPriority: 1,
           },
           defaults: { ease: "none" },
@@ -318,7 +317,6 @@ export default function Services() {
         return () => {
           tl.scrollTrigger?.kill();
           tl.kill();
-          const flipWrappers = visuals.map((el) => el.parentElement as HTMLDivElement);
           gsap.killTweensOf([heading, deck, ...cards, ...visuals, ...contents, ...flipWrappers]);
         };
       });
@@ -454,6 +452,9 @@ export default function Services() {
                 }}
               >
                 <div
+                  ref={(el) => {
+                    flipWrapperRefs.current[index] = el;
+                  }}
                   className="absolute inset-0 shadow-[0_28px_80px_rgba(0,0,0,0.36)] [transform-style:preserve-3d] will-change-transform"
                   style={{ borderRadius: "inherit", backgroundColor: card.bg }}
                 >

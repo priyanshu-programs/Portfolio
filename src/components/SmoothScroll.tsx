@@ -213,5 +213,30 @@ export default function SmoothScroll({
     };
   }, [pathname]);
 
-  return <>{children}</>;
+  /*
+   * A real host node, not a fragment.
+   *
+   * As a fragment this component contributed no element, which made <body> the
+   * direct React parent of a flat sibling list: the arming <script>, the whole
+   * route tree, SiteFooter, and the overlay hosts. Browser extensions inject
+   * their own nodes as direct children of <body>, and React tracks siblings by
+   * position in that list — an injected node between them is what turns an
+   * unmount into "removeChild: the node to be removed is not a child of this
+   * node". Anything appended to <body> now lands outside the subtree React
+   * reconciles.
+   *
+   * Layout-neutral on purpose: <body> is `min-h-full flex flex-col`, so this
+   * div is a flex child that needs to grow, and .page-wrapper inside it already
+   * owns width and min-height. `display: contents` would NOT do — it removes
+   * the box from layout but leaves the node in the tree, which is the one thing
+   * that has to stay real here.
+   *
+   * Lenis is unaffected: it is constructed with no `wrapper`/`content`, so it
+   * scrolls window/documentElement regardless of this element.
+   */
+  return (
+    <div id="scroll-root" className="flex flex-1 flex-col">
+      {children}
+    </div>
+  );
 }

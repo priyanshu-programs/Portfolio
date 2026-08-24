@@ -96,21 +96,10 @@ export default function CtaCollage() {
           end: "+=200%", // Tighter scroll range
           scrub: 1,
           pin: true,
-          /* No spacer, and pinned by transform rather than position:fixed.
-             Both matter for correctness, not just layout: with the default
-             `pinSpacing`, ScrollTrigger injects a .pin-spacer div and moves
-             this <section> inside it. React never sees that re-parent, so when
-             page.tsx's `{isDesktop && <CtaCollage />}` gate flips false, React
-             calls removeChild on the parent it recorded and the browser throws
-             NotFoundError. The section already reserves its own viewport
-             height below, so the spacer's contributed height buys nothing. */
-          pinSpacing: false,
-          pinType: "transform",
           anticipatePin: 1,
           invalidateOnRefresh: true,
-          // Still first to refresh: this trigger pins the last full-viewport
-          // section on the page, so anything measuring below it wants this
-          // one's start/end settled before it reads its own.
+          // Pinned triggers change document height via their .pin-spacer, so
+          // they must refresh before anything below them measures the page.
           refreshPriority: 1,
         },
       });
@@ -266,10 +255,11 @@ export default function CtaCollage() {
     }, containerRef);
 
     /* Kill the trigger before reverting the context, and revert it explicitly
-       with `true` — same shape as NextProject's cleanup. This runs as a child
-       effect cleanup in the very commit React deletes this <section>, so any
-       GSAP-owned wrapper or inline geometry that outlives the kill would still
-       be in place when React reaches for the node. Order it so nothing does. */
+       with `true` — same shape as NextProject's cleanup. This section unmounts
+       at the breakpoint, so its cleanup runs in the very commit React deletes
+       the host node; leaving the pin's spacer or the stage's inline geometry
+       to be torn down implicitly would mean GSAP and React both reaching for
+       the same nodes in the same commit. */
     return () => {
       ScrollTrigger.getAll()
         .filter((t) => t.trigger === container)

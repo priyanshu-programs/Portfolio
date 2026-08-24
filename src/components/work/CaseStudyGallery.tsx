@@ -154,30 +154,14 @@ export default function CaseStudyGallery({
             // Scroll distance matches travel distance 1:1.
             end: () => `+=${distance()}`,
             pin: true,
-            /* No spacer, and pinned by transform. Same correctness fix as
-               Services and CtaCollage: the default `pinSpacing` moves the
-               pinned element into an injected .pin-spacer that React does not
-               know about, and this pin sits inside the DESKTOP_QUERY branch
-               below, so it is built going wide and unwound going narrow —
-               re-parenting a React-owned node during the same breakpoint
-               crossing that reshapes the page. The pinned element already
-               carries `h-screen`, so it reserves its own height.
-
-               Note this genuinely reduces document height, which the priority
-               note below cares about: the spacer no longer pads the page, so
-               NextProject's foot-of-page runway is measured against a shorter
-               document. Its `end` is an explicit +=180% chosen for exactly that
-               reason, so it does not depend on this spacer — but this is the
-               coupling to check first if the handoff ever stalls again. */
-            pinSpacing: false,
-            pinType: "transform",
             scrub: 0.2,
             anticipatePin: 1,
             invalidateOnRefresh: true,
-            // Measured before anything downstream reads maxScroll or
-            // document-space offsets — NextProject's foot-of-page handoff does
-            // exactly that. The default sort is by start position, itself
-            // computed from the *un-pinned* layout on the first pass, so
+            // Pinning injects a .pin-spacer, which changes document height, so
+            // this trigger has to be measured before anything downstream reads
+            // maxScroll or document-space offsets — NextProject's foot-of-page
+            // handoff does exactly that. The default sort is by start position,
+            // itself computed from the *un-pinned* layout on the first pass, so
             // ordering was luck. Higher priority refreshes first.
             refreshPriority: 1,
             // onRefreshInit, not onRefresh: refresh order is onRefreshInit ->
