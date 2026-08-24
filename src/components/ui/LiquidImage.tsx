@@ -2,7 +2,37 @@
 
 import React, { useEffect, useRef } from "react";
 import Image from "next/image";
-import { Renderer, Texture, Program, Geometry, Mesh, Vec2, Flowmap } from "ogl";
+import { Renderer, Texture, Program, Geometry, Mesh, Vec2 } from "ogl";
+
+/* ── Grid displacement tuning ──────────────────────────────────────────────
+   The picture is diced into a grid of cells, each holding a signed x/y offset.
+   Cells near the cursor are pushed in its direction of travel and relax back
+   toward zero every frame, so the image breaks into blocks that ripple out
+   from the pointer and settle once it stops. */
+
+/** Cells along the box's SHORTER side. The longer side gets proportionally
+ *  more, so cells stay square on screen. Higher = finer blocks. */
+const GRID_SIZE = 16;
+
+/** How far the cursor reaches, as a fraction of the shorter side. */
+const MOUSE_RADIUS = 0.18;
+
+/** How hard pointer velocity pushes a cell. */
+const STRENGTH = 12;
+
+/** Per-frame decay toward rest. Closer to 1 settles more slowly. Must stay
+ *  under 1, or offsets never return to zero and the settle window can't end. */
+const RELAXATION = 0.92;
+
+/** Below this, a cell is snapped to exactly zero — otherwise the float decay
+ *  approaches rest asymptotically and the grid never reads as truly still. */
+const REST_EPSILON = 0.0001;
+
+/** How far a unit offset shifts the sampled UV. */
+const DISPLACEMENT = 0.08;
+
+/** Channel split, as a fraction of the shift — the red/blue fringing. */
+const ABERRATION = 0.35;
 
 const vertex = `
   attribute vec2 uv;
@@ -18,28 +48,35 @@ const fragment = `
   precision highp float;
   precision highp int;
   uniform sampler2D tWater;
-  uniform sampler2D tFlow;
+  uniform sampler2D tGrid;
   uniform float uTime;
+  uniform float uDisplacement;
+  uniform float uAberration;
   varying vec2 vUv;
   uniform vec2 uScale;
   uniform vec2 uAnchor;
   uniform vec2 uResolution;
 
   void main() {
-      vec3 flow = texture2D(tFlow, vUv).rgb;
+      // The cell offset is read at vUv, NOT myUV: the grid is laid out in
+      // screen space (its cell counts come from the box aspect), so sampling
+      // it through the object-fit mapping would stretch the blocks.
+      // NEAREST filtering is what keeps each cell a hard-edged square.
+      vec2 offset = texture2D(tGrid, vUv).rg * uDisplacement;
 
       // object-position, as the fixed point of the uScale expansion: the UV
       // that maps to itself. (0.5, 0.0) is centre/bottom — the original
       // hard-coded behaviour; (0.5, 1.0) anchors the image's top edge instead,
       // letting surplus height fall off the bottom.
       vec2 myUV = (vUv - uAnchor) * uScale + uAnchor;
-      
-      // Chromatic aberration on the flow distortion
-      // Balanced premium RGB split
-      float strength = 0.5; 
-      vec2 uvR = myUV - flow.xy * strength * 0.92;
-      vec2 uvG = myUV - flow.xy * strength * 1.00;
-      vec2 uvB = myUV - flow.xy * strength * 1.08;
+
+      // Chromatic aberration, scaled by the displacement itself: where the
+      // grid is at rest all three channels sample the same point and the image
+      // is clean; only disturbed cells fringe red/blue.
+      vec2 split = offset * uAberration;
+      vec2 uvR = myUV - offset - split;
+      vec2 uvG = myUV - offset;
+      vec2 uvB = myUV - offset + split;
 
       vec4 texR = texture2D(tWater, uvR);
       vec4 texG = texture2D(tWater, uvG);
@@ -252,19 +289,70 @@ export default function LiquidImage({
     const velocity = new Vec2();
     let needsUpdate = false;
     // Render gating: the loop only draws while there is recent pointer input
-    // (plus a short settle window for the ripple to dissipate), when the base
+    // (plus a short settle window for the blocks to settle back), when the base
     // image needs a (re)draw, and when the element is on-screen. This keeps the
     // GPU idle instead of rendering every frame forever.
     let settleFrames = 0;
     let dirty = true; // base image needs an initial/refreshed draw
     let onScreen = true;
-    const SETTLE = 90; // ~1.5s @60fps for the ripple to fully fade
+    const SETTLE = 90; // ~1.5s @60fps; at RELAXATION=0.92 the grid is at rest well inside it
 
-    const flowmap = new Flowmap(gl, {
-      falloff: 0.3, // Visible but controlled ripple radius
-      dissipation: 0.96, // Smooth decay that lasts long enough to be seen
-      alpha: 0.9 // Stronger opacity for a clearer effect
-    });
+    /* The displacement field: one texel per grid cell, R/G holding a signed
+       x/y offset. Rebuilt on resize because the cell counts follow the box
+       aspect. Float rather than the usual UNSIGNED_BYTE because the offsets
+       are signed — a byte texture would clip every leftward/downward push to
+       zero and lose half the effect. */
+    let gridCols = 0;
+    let gridRows = 0;
+    let gridData = new Float32Array(0);
+    let gridTexture: Texture | null = null;
+    /** Whether the last frame uploaded a non-zero field, so the settling
+     *  frame that returns it to all-zeros still gets pushed to the GPU. */
+    let gridDirty = false;
+
+    const buildGrid = (width: number, height: number) => {
+      // Square cells: the shorter side gets GRID_SIZE, the longer side gets
+      // proportionally more.
+      const aspect = width / height;
+      const cols = aspect >= 1 ? Math.round(GRID_SIZE * aspect) : GRID_SIZE;
+      const rows = aspect >= 1 ? GRID_SIZE : Math.round(GRID_SIZE / aspect);
+
+      if (gridTexture && cols === gridCols && rows === gridRows) return;
+
+      // Release the outgoing texture before replacing it, or every breakpoint
+      // cross and device rotation leaks one.
+      if (gridTexture) gl.deleteTexture(gridTexture.texture);
+
+      gridCols = cols;
+      gridRows = rows;
+      gridData = new Float32Array(cols * rows * 4);
+      gridDirty = false;
+
+      gridTexture = new Texture(gl, {
+        image: gridData,
+        width: cols,
+        height: rows,
+        type: gl.FLOAT,
+        format: gl.RGBA,
+        // WebGL2 demands a sized internal format for float textures; WebGL1
+        // (where ogl has already requested OES_texture_float) wants the
+        // unsized one. Getting this pair wrong is an INVALID_OPERATION and a
+        // blank canvas.
+        internalFormat: renderer.isWebgl2
+          ? (gl as WebGL2RenderingContext).RGBA32F
+          : gl.RGBA,
+        // Hard cell edges — the whole point of the effect.
+        minFilter: gl.NEAREST,
+        magFilter: gl.NEAREST,
+        wrapS: gl.CLAMP_TO_EDGE,
+        wrapT: gl.CLAMP_TO_EDGE,
+        generateMipmaps: false,
+        // Row 0 is the BOTTOM row, matching the mouse's y-from-bottom space.
+        flipY: false,
+      });
+
+      program.uniforms.tGrid.value = gridTexture;
+    };
 
     const geometry = new Geometry(gl, {
       position: { size: 2, data: new Float32Array([-1, -1, 3, -1, -1, 3]) },
@@ -288,7 +376,11 @@ export default function LiquidImage({
         uScale: { value: new Vec2(1, 1) },
         // Centre/bottom by default — see the shader and `resize()`.
         uAnchor: { value: new Vec2(0.5, 0.0) },
-        tFlow: flowmap.uniform
+        // Filled in by buildGrid() on the first resize(), which runs before
+        // the first draw.
+        tGrid: { value: null as Texture | null },
+        uDisplacement: { value: DISPLACEMENT },
+        uAberration: { value: ABERRATION },
       },
       transparent: true
     });
@@ -320,6 +412,9 @@ export default function LiquidImage({
 
       renderer.setSize(width, height);
       program.uniforms.uResolution.value.set(width, height);
+      // Cell counts follow the box aspect, so the grid is rebuilt here. It
+      // no-ops when the counts haven't actually changed.
+      buildGrid(width, height);
 
       if (img.width && img.height) {
         const imageAspect = img.width / img.height;
@@ -401,7 +496,7 @@ export default function LiquidImage({
 
       lastMouse.copy(mouse);
 
-      // Scaled up slightly to ensure movement creates a noticeable ripple
+      // Scaled up slightly so ordinary movement visibly displaces the blocks
       velocity.set(deltaX * 2.0, deltaY * 2.0);
       needsUpdate = true;
     };
@@ -422,6 +517,76 @@ export default function LiquidImage({
     );
     intersectionObserver.observe(container);
 
+    /* One step of the displacement field: every cell eases back toward rest,
+       then cells within the cursor's reach are pushed along its direction of
+       travel. Called only from inside the render gate below — it must not run
+       while the element is idle or off-screen. */
+    const smoothedVelocity = new Vec2();
+    const updateGrid = () => {
+      if (!gridTexture) return;
+
+      // Relax. Every cell, every frame — this is what makes the blocks slide
+      // back into place once the pointer stops.
+      let anyActive = false;
+      for (let i = 0; i < gridData.length; i += 4) {
+        const x = gridData[i] * RELAXATION;
+        const y = gridData[i + 1] * RELAXATION;
+        // Snap to exact zero, or the decay only ever approaches it and the
+        // grid keeps drawing an imperceptible wobble forever.
+        gridData[i] = Math.abs(x) < REST_EPSILON ? 0 : x;
+        gridData[i + 1] = Math.abs(y) < REST_EPSILON ? 0 : y;
+        if (gridData[i] !== 0 || gridData[i + 1] !== 0) anyActive = true;
+      }
+
+      // Ease the velocity so a fast flick lands as a push over several frames
+      // rather than a single-frame spike.
+      smoothedVelocity.lerp(velocity, velocity.len() ? 0.15 : 0.08);
+
+      // Push. mouse is normalised 0-1 with y measured from the BOTTOM, which
+      // is also this texture's row order (flipY: false) — so no flip needed.
+      if (mouse.x >= 0 && mouse.y >= 0) {
+        const cx = mouse.x * gridCols;
+        const cy = mouse.y * gridRows;
+        // The radius is a fraction of the SHORTER side; expressing it in cells
+        // per-axis keeps the reach circular on screen rather than elliptical.
+        const radiusX = MOUSE_RADIUS * Math.min(gridCols, gridRows);
+        const radiusY = radiusX;
+
+        // Only walk the bounding box of the reach, not the whole grid.
+        const minCol = Math.max(0, Math.floor(cx - radiusX));
+        const maxCol = Math.min(gridCols - 1, Math.ceil(cx + radiusX));
+        const minRow = Math.max(0, Math.floor(cy - radiusY));
+        const maxRow = Math.min(gridRows - 1, Math.ceil(cy + radiusY));
+
+        for (let row = minRow; row <= maxRow; row++) {
+          for (let col = minCol; col <= maxCol; col++) {
+            // Cell centre, so the falloff is symmetric about the cursor.
+            const dx = col + 0.5 - cx;
+            const dy = row + 0.5 - cy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > radiusX) continue;
+
+            // Smooth falloff, capped so the cell under the cursor doesn't
+            // blow out.
+            const falloff = Math.min(1, 1 - dist / radiusX);
+            const push = falloff * falloff * STRENGTH;
+
+            const i = (row * gridCols + col) * 4;
+            gridData[i] += smoothedVelocity.x * push;
+            gridData[i + 1] += smoothedVelocity.y * push;
+            anyActive = true;
+          }
+        }
+      }
+
+      // Skip the upload once everything is at rest and nothing was pushed —
+      // the texture already holds all zeros.
+      if (anyActive || gridDirty) {
+        gridTexture.needsUpdate = true;
+        gridDirty = anyActive;
+      }
+    };
+
     let reqId: number;
     const update = (t: number) => {
       reqId = requestAnimationFrame(update);
@@ -429,8 +594,8 @@ export default function LiquidImage({
       if (needsUpdate) settleFrames = SETTLE;
 
       const active = settleFrames > 0;
-      // Nothing to draw: off-screen, or idle with the ripple already faded and
-      // no pending base-image redraw.
+      // Nothing to draw: off-screen, or idle with the blocks already settled
+      // and no pending base-image redraw.
       if (!onScreen || (!active && !dirty)) {
         needsUpdate = false;
         return;
@@ -440,14 +605,13 @@ export default function LiquidImage({
       if (!needsUpdate) {
         mouse.set(-1);
         velocity.set(0);
+        // Drop the eased velocity too, or a pointer that leaves and re-enters
+        // resumes with the direction it had on the way out.
+        smoothedVelocity.set(0);
       }
       needsUpdate = false;
 
-      flowmap.aspect = canvas.width / canvas.height;
-      flowmap.mouse.copy(mouse);
-      // Lerp a bit slower when mouse stops to let the velocity settle smoothly
-      flowmap.velocity.lerp(velocity, velocity.len() ? 0.15 : 0.08);
-      flowmap.update();
+      updateGrid();
 
       program.uniforms.uTime.value = t * 0.01;
 
@@ -468,6 +632,12 @@ export default function LiquidImage({
       container.removeEventListener('touchstart', updateMouse);
       container.removeEventListener('touchmove', updateMouse);
       cancelAnimationFrame(reqId);
+      // ogl has no dispose() on Texture, so release the GPU handle directly —
+      // otherwise every remount of this effect leaks one.
+      if (gridTexture) {
+        gl.deleteTexture(gridTexture.texture);
+        gridTexture = null;
+      }
     };
   }, [src]);
 
