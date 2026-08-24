@@ -22,6 +22,7 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
 
     let canvas: HTMLCanvasElement;
     let context: CanvasRenderingContext2D | null;
+    const overlayRoot = document.getElementById('app-overlay-root');
     let animationFrame = 0;
     let running = false;
     let lastFrameAt = 0;
@@ -241,6 +242,7 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
         console.log('Reduced motion enabled, cursor effect skipped.');
         return;
       }
+      if (!overlayRoot) return;
 
       canvas = document.createElement('canvas');
       context = canvas.getContext('2d');
@@ -252,7 +254,7 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
       canvas.width = width;
       canvas.height = height;
       canvas.style.zIndex = zIndex ? zIndex.toString() : '';
-      document.body.appendChild(canvas);
+      overlayRoot.appendChild(canvas);
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('resize', onWindowResize);
@@ -265,7 +267,7 @@ const FollowCursor: React.FC<FollowCursorProps> = ({
     };
 
     const destroy = () => {
-      if (canvas) canvas.remove();
+      if (canvas?.parentNode === overlayRoot) canvas.remove();
       stopLoop();
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('resize', onWindowResize);

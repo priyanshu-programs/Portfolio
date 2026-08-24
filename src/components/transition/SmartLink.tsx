@@ -1,7 +1,6 @@
 "use client";
 
 import NextLink from "next/link";
-import { Link as ViewTransitionLink } from "next-view-transitions";
 import { usePathname } from "next/navigation";
 import type { ComponentProps, MouseEvent } from "react";
 import type Lenis from "lenis";
@@ -53,9 +52,8 @@ export default function SmartLink({ href, onClick, ...props }: LinkProps) {
    * Announce the pending navigation so `RouteLoadingOverlay` can show the
    * progress bar if the route turns out to be slow.
    *
-   * Safe to run before delegating: `next-view-transitions`' Link calls
-   * `props.onClick(e)` first and only then checks `defaultPrevented`, so this
-   * fires ahead of its `preventDefault` — and bails if a caller cancelled.
+   * The handler stays on the standard Next link so React remains the only
+   * owner of the route subtree during navigation.
    */
   const handleRouteClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
@@ -71,7 +69,7 @@ export default function SmartLink({ href, onClick, ...props }: LinkProps) {
   }
 
   if (isRouteChange) {
-    return <ViewTransitionLink href={href} onClick={handleRouteClick} {...props} />;
+    return <NextLink href={href} onClick={handleRouteClick} {...props} />;
   }
 
   return <NextLink href={href} onClick={onClick} {...props} />;

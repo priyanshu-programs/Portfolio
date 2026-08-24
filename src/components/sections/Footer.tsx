@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "@/components/transition/SmartLink";
 import { useSiteContent } from "@/components/ContentProvider";
 import ShaderSignatureText from "@/components/ui/ShaderSignatureText";
@@ -21,6 +22,11 @@ const DEFAULT_TIMEZONE = "IST — UTC +5:30";
 const DEFAULT_EMAIL = "priyanshuroy.official19@gmail.com";
 const DEFAULT_NAME = "Priyanshu Roy";
 
+const SIGNATURE_BASE_SIZE = 100;
+const SIGNATURE_SAFETY = 0.98;
+const SIGNATURE_MIN_SIZE = 48;
+const SIGNATURE_MAX_SIZE = 252;
+
 export default function Footer() {
   const settings = useSiteContent()?.settings;
   const navLinks = (settings?.navLinks?.length ? settings.navLinks : NAV_LINKS).map(
@@ -33,6 +39,40 @@ export default function Footer() {
   const timezone = settings?.timezone ?? DEFAULT_TIMEZONE;
   const email = settings?.email ?? DEFAULT_EMAIL;
   const name = settings?.name ?? DEFAULT_NAME;
+
+  const signatureAreaRef = useRef<HTMLDivElement>(null);
+  const signatureMeasureRef = useRef<HTMLSpanElement>(null);
+  const [signatureSize, setSignatureSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    const area = signatureAreaRef.current;
+    const measure = signatureMeasureRef.current;
+    if (!area || !measure) return;
+
+    const update = () => {
+      const styles = window.getComputedStyle(area);
+      const paddingX =
+        Number.parseFloat(styles.paddingLeft) +
+        Number.parseFloat(styles.paddingRight);
+      const available = area.clientWidth - paddingX;
+      const naturalWidth = measure.getBoundingClientRect().width;
+      if (!available || !naturalWidth) return;
+
+      const fitted =
+        ((available * SIGNATURE_SAFETY) / naturalWidth) * SIGNATURE_BASE_SIZE;
+      setSignatureSize(
+        Math.min(SIGNATURE_MAX_SIZE, Math.max(SIGNATURE_MIN_SIZE, fitted)),
+      );
+    };
+
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(area);
+    document.fonts?.ready.then(update);
+
+    return () => observer.disconnect();
+  }, [name]);
 
   return (
     <footer className="relative w-full bg-cream overflow-hidden min-h-[520px] lg:h-screen flex flex-col">
@@ -87,14 +127,29 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Script name — grows to fill remaining height */}
-      <div className="relative flex-1 no-overflow">
+      {/* Script name — grows to fill remaining height. Horizontal padding
+          matches the dark card wrapper above so the signature fits between
+          the card's left/right margins at every viewport width. */}
+      <div
+        ref={signatureAreaRef}
+        className="relative flex-1 no-overflow px-4 sm:px-6 lg:px-[26px]"
+      >
         <ShaderSignatureText
           text={name}
           aria-hidden
           className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 whitespace-nowrap font-script leading-none select-none"
-          style={{ fontSize: "clamp(112px, 24vw, 252px)" }}
+          style={{
+            fontSize: signatureSize ?? "clamp(112px, 24vw, 252px)",
+          }}
         />
+        <span
+          ref={signatureMeasureRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute select-none whitespace-nowrap font-script leading-none"
+          style={{ fontSize: SIGNATURE_BASE_SIZE }}
+        >
+          {name}
+        </span>
       </div>
     </footer>
   );

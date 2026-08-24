@@ -67,10 +67,15 @@ export function useIsDesktop(): boolean {
       return;
     }
 
-    /* Sections mount and unmount in this same commit, and child effects run
-       before the parent's - so by the time this runs, the DOM is already in
-       its new shape and the measurement is the correct one. */
-    ScrollTrigger.refresh();
+    /* Deferred a frame rather than run inline. Child effects do run before the
+       parent's, so the DOM is already in its new shape by the time this fires -
+       but "already reshaped" is not the same as "done being reshaped". React is
+       still inside the commit that deletes the outgoing section's host nodes,
+       and a refresh here re-measures every live trigger, which for a pinned one
+       means touching the DOM around a node React is midway through removing.
+       A frame later the commit is closed and the measurement is just as correct. */
+    const raf = requestAnimationFrame(() => ScrollTrigger.refresh());
+    return () => cancelAnimationFrame(raf);
   }, [isDesktop]);
 
   return isDesktop;

@@ -85,6 +85,9 @@ export default function ViewLiveCursor({
 
   if (!mounted) return null;
 
+  const overlayRoot = document.getElementById("app-overlay-root");
+  if (!overlayRoot) return null;
+
   return createPortal(
     <div
       ref={cursorRef}
@@ -141,6 +144,6 @@ export default function ViewLiveCursor({
         </svg>
       </div>
     </div>,
-    document.body
+    overlayRoot
   );
 }
