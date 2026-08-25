@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import CaseStudy from "@/components/work/CaseStudy";
 import { getCaseStudy, getWorkSlugs } from "@/lib/sanity/getCaseStudy";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
+import { absoluteUrl } from "@/lib/siteUrl";
+import JsonLd from "@/components/JsonLd";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -45,14 +47,37 @@ export async function generateMetadata({
     [project.category, project.services].filter(Boolean).join(" · ") ||
     undefined;
 
+  // Explicit dimensions and alt: scrapers that won't fetch the image to measure
+  // it (X and Slack among them) need og:image:width/height present to render a
+  // large card instead of a thumbnail. buildImageUrl requested 2000px wide, and
+  // the covers are 16/10, so 2000x1250 describes the asset being served.
+  const images = project.cover
+    ? [
+        {
+          url: project.cover,
+          width: 2000,
+          height: 1250,
+          alt: project.title ? `${project.title} — cover` : "Project cover",
+        },
+      ]
+    : undefined;
+
   return {
     title,
     description,
+    alternates: { canonical: `/work/${slug}` },
     openGraph: {
       title,
       description,
       type: "article",
-      images: project.cover ? [{ url: project.cover }] : undefined,
+      url: `/work/${slug}`,
+      images,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: project.cover ? [project.cover] : undefined,
     },
   };
 }
@@ -63,5 +88,56 @@ export default async function CaseStudyPage({ params }: PageProps) {
 
   if (!project) notFound();
 
-  return <CaseStudy project={project} />;
+  const content = await getSiteContent();
+  const authorName = content?.settings?.name ?? "Priyanshu Roy";
+
+  /**
+   * CreativeWork describes the project itself; BreadcrumbList gives Google the
+   * Home → Work → Project trail it uses to render breadcrumbs in results
+   * instead of a bare URL. `creator` points at the Person @id minted in the
+   * root layout, so the case study attaches to the same identity graph.
+   */
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CreativeWork",
+        "@id": absoluteUrl(`/work/${slug}#work`),
+        name: project.title,
+        url: absoluteUrl(`/work/${slug}`),
+        ...(project.summary ? { abstract: project.summary } : {}),
+        ...(project.cover ? { image: project.cover } : {}),
+        ...(project.year ? { dateCreated: project.year } : {}),
+        // Recency is a strong signal for both ranking and AI-answer citation,
+        // and `year` alone ("2026") is too coarse to serve as one. These come
+        // from Sanity's own document timestamps, so editing a project in the
+        // Studio updates dateModified without anyone maintaining a date field.
+        ...(project.createdAt ? { datePublished: project.createdAt } : {}),
+        ...(project.updatedAt ? { dateModified: project.updatedAt } : {}),
+        ...(project.category ? { genre: project.category } : {}),
+        creator: { "@id": absoluteUrl("/#person") },
+        author: { "@type": "Person", name: authorName },
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: absoluteUrl("/") },
+          { "@type": "ListItem", position: 2, name: "Work", item: absoluteUrl("/work") },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: project.title ?? "Project",
+            item: absoluteUrl(`/work/${slug}`),
+          },
+        ],
+      },
+    ],
+  };
+
+  return (
+    <>
+      <JsonLd data={structuredData} />
+      <CaseStudy project={project} />
+    </>
+  );
 }

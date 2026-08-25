@@ -13,6 +13,7 @@ import { submitContact } from "@/app/contact/actions";
 import { useSiteContent } from "@/components/ContentProvider";
 import CalendlyEmbed from "@/components/ui/CalendlyEmbed";
 import BloomFieldGradient from "@/components/ui/BloomFieldGradient";
+import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import NumberedField from "@/components/ui/NumberedField";
 import {
   FIELD_MAX_LENGTH,
@@ -117,7 +118,6 @@ export default function ContactStage() {
   const headingRef = useRef<HTMLSpanElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const timingRef = useRef<HTMLInputElement>(null);
-  const submitBtnRef = useRef<HTMLButtonElement>(null);
 
   // Bridges the form → success DOM swap across the collapse animation: the
   // form collapses first (still mounted), then this flips to mount the
@@ -432,22 +432,6 @@ export default function ContactStage() {
     return `mailto:${ownerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   })();
 
-  /**
-   * Pearl-spotlight that trails the cursor, matching the "More work" button on
-   * the homepage (see AboutWork.tsx). The spotlight position is tracked via CSS
-   * custom properties consumed by `.pearl-btn-spotlight`.
-   */
-  const handleSubmitMouseMove = (
-    e: React.MouseEvent<HTMLButtonElement, MouseEvent>
-  ) => {
-    if (!submitBtnRef.current) return;
-    const rect = submitBtnRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    submitBtnRef.current.style.setProperty("--mouse-x", `${x}px`);
-    submitBtnRef.current.style.setProperty("--mouse-y", `${y}px`);
-  };
-
   // `no-overflow`, not `overflow-hidden`: the latter makes this section a scroll
   // container, and the sidebar's `position: sticky` then resolves against *this*
   // box instead of the page — which has no scrollable overflow, so the sidebar
@@ -601,24 +585,14 @@ export default function ContactStage() {
                 ) : null}
 
                 <div className="contact-submit border-t border-divider/60 mt-0 py-8 lg:py-10 md:pl-[88px]">
-                  <button
-                    ref={submitBtnRef}
+                  <LiquidMetalButton
                     type="submit"
                     disabled={pending}
                     aria-busy={pending}
-                    onMouseMove={handleSubmitMouseMove}
-                    // No `disabled:opacity-50`: the in-flight look is carried by
-                    // the [aria-busy] rules in globals.css, which hold the pressed
-                    // geometry and run a sweep. Dimming on top of that would read
-                    // as "unavailable" rather than "working". `disabled` is still
-                    // set above, so it continues to block a double submit.
-                    className="pearl-btn w-full text-center sm:w-auto sm:text-left"
+                    label={submitLabel}
                   >
-                    <div className="pearl-btn-spotlight" />
-                    <div className="wrap">
-                      <span>{pending ? submitPendingLabel : submitLabel}</span>
-                    </div>
-                  </button>
+                    {pending ? submitPendingLabel : submitLabel}
+                  </LiquidMetalButton>
                 </div>
               </form>
             )}

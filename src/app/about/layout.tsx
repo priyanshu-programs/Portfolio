@@ -12,9 +12,30 @@ const DEFAULT_DESCRIPTION =
 export async function generateMetadata(): Promise<Metadata> {
   const content = await getSiteContent();
   const about = content?.about;
+  const title = about?.seoTitle ?? DEFAULT_TITLE;
+  const description = about?.seoDescription ?? DEFAULT_DESCRIPTION;
+
+  // `images` is repeated from the root layout on purpose. Nested metadata
+  // objects REPLACE the parent's rather than merging into it, so declaring
+  // `openGraph` here without images strips the site-wide card and this route
+  // unfurls as a bare text link. Same reason `card` is restated under twitter.
   return {
-    title: about?.seoTitle ?? DEFAULT_TITLE,
-    description: about?.seoDescription ?? DEFAULT_DESCRIPTION,
+    title,
+    description,
+    alternates: { canonical: "/about" },
+    openGraph: {
+      title,
+      description,
+      url: "/about",
+      type: "profile",
+      images: ["/opengraph-image"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ["/opengraph-image"],
+    },
   };
 }
 
