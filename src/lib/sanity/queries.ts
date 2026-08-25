@@ -70,6 +70,12 @@ export const workSlugsQuery = /* groq */ `
 export const caseStudyBySlugQuery = /* groq */ `{
   "project": *[_type == "workProject" && slug.current == $slug && visible != false][0]{
     title, "slug": slug.current, category, services, year,
+    // Sanity stamps these on every document, so they need no schema field and
+    // cannot drift from reality the way a hand-entered date would. They feed
+    // datePublished/dateModified in the case study's JSON-LD; recency is a
+    // strong ranking and AI-citation signal, and nothing else in the content
+    // model records when a project was actually published or last edited.
+    _createdAt, _updatedAt,
     summary, liveUrl, cover,
     challenge, approach,
     galleryHeading, gallerySubheading,

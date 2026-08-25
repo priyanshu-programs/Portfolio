@@ -124,7 +124,12 @@ export function LiquidMetalButton<E extends React.ElementType = "button">({
     };
   }, []);
 
+  const isDisabled = Boolean(
+    (rest as { disabled?: boolean }).disabled,
+  );
+
   const handleMouseEnter = () => {
+    if (isDisabled) return;
     setIsHovered(true);
     shaderMount.current?.setSpeed?.(1);
   };
@@ -136,6 +141,7 @@ export function LiquidMetalButton<E extends React.ElementType = "button">({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLElement>) => {
+    if (isDisabled) return;
     if (shaderMount.current?.setSpeed) {
       shaderMount.current.setSpeed(2.4);
       setTimeout(() => {
@@ -309,7 +315,7 @@ export function LiquidMetalButton<E extends React.ElementType = "button">({
             onClick={handleClick}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            onMouseDown={() => setIsPressed(true)}
+            onMouseDown={() => !isDisabled && setIsPressed(true)}
             onMouseUp={() => setIsPressed(false)}
             style={{
               position: "absolute",
@@ -319,7 +325,7 @@ export function LiquidMetalButton<E extends React.ElementType = "button">({
               height: `${dimensions.height}px`,
               background: "transparent",
               border: "none",
-              cursor: "pointer",
+              cursor: isDisabled ? "default" : "pointer",
               outline: "none",
               zIndex: 40,
               transformStyle: "preserve-3d",

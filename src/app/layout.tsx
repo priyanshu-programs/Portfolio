@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 import { ViewTransitions } from "next-view-transitions";
@@ -9,6 +10,8 @@ import SiteFooter from "@/components/sections/SiteFooter";
 import { ContentProvider } from "@/components/ContentProvider";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
 import { ARM_SCRIPT } from "@/lib/landingIntroArm";
+import { SITE_URL, absoluteUrl } from "@/lib/siteUrl";
+import JsonLd from "@/components/JsonLd";
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -33,11 +36,54 @@ const DEFAULT_TITLE = "Priyanshu Roy — Brand Designer & Web Developer";
 const DEFAULT_DESCRIPTION =
   "Most sites look like templates. Mine don't. Identity and execution, together.";
 
-export async function generateMetadata() {
+/**
+ * Site-wide metadata. The OG/Twitter blocks set here are inherited by every
+ * route, so a page only has to override the fields that actually differ —
+ * which is why the sub-layouts below stay as thin as they are.
+ *
+ * `metadataBase` is what makes the relative "/opengraph-image" reference in
+ * those blocks resolve to an absolute URL; without it Next warns at build and
+ * social scrapers get a relative src they cannot fetch.
+ */
+export async function generateMetadata(): Promise<Metadata> {
   const content = await getSiteContent();
+  const settings = content?.settings;
+  const title = settings?.seoTitle ?? DEFAULT_TITLE;
+  const description = settings?.seoDescription ?? DEFAULT_DESCRIPTION;
+  const name = settings?.name ?? "Priyanshu Roy";
+
   return {
-    title: content?.settings?.seoTitle ?? DEFAULT_TITLE,
-    description: content?.settings?.seoDescription ?? DEFAULT_DESCRIPTION,
+    metadataBase: new URL(SITE_URL),
+    title,
+    description,
+    applicationName: name,
+    authors: [{ name }],
+    creator: name,
+    alternates: { canonical: "/" },
+    openGraph: {
+      type: "website",
+      siteName: name,
+      title,
+      description,
+      url: "/",
+      locale: "en_US",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    },
   };
 }
 
@@ -47,6 +93,42 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const content = await getSiteContent();
+  const settings = content?.settings;
+  const personName = settings?.name ?? "Priyanshu Roy";
+
+  /**
+   * Person and WebSite, linked by @id so crawlers read them as one graph
+   * rather than two unrelated entities. `sameAs` carries the social profiles
+   * already authored in Sanity — the strongest signal available for tying this
+   * site to a real identity.
+   */
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": absoluteUrl("/#person"),
+        name: personName,
+        url: absoluteUrl("/"),
+        jobTitle: "Brand Designer & Web Developer",
+        ...(settings?.email ? { email: settings.email } : {}),
+        ...(settings?.socials?.length
+          ? { sameAs: settings.socials.map((s) => s.href).filter(Boolean) }
+          : {}),
+      },
+      {
+        "@type": "WebSite",
+        "@id": absoluteUrl("/#website"),
+        url: absoluteUrl("/"),
+        name: personName,
+        ...(settings?.seoDescription
+          ? { description: settings.seoDescription }
+          : {}),
+        publisher: { "@id": absoluteUrl("/#person") },
+        inLanguage: "en",
+      },
+    ],
+  };
 
   return (
     <ViewTransitions>
@@ -99,6 +181,10 @@ export default async function RootLayout({
           */}
           {/* eslint-disable-next-line @next/next/no-sync-scripts */}
           <script dangerouslySetInnerHTML={{ __html: ARM_SCRIPT }} />
+          {/* Must stay *after* the arming script above, which is required to be
+              the first child of <body>. type="application/ld+json" is inert —
+              the parser does not execute it — so it costs nothing pre-paint. */}
+          <JsonLd data={structuredData} />
           <ContentProvider value={content}>
             <SmoothScroll>
               {children}

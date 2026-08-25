@@ -346,8 +346,22 @@ export default function Services() {
       ref={sectionRef}
       className="relative isolate w-full overflow-hidden bg-[#FFFCFA] px-6 text-black sm:px-10 lg:px-0 pb-12 lg:pb-32"
     >
-      <div className="py-16 lg:hidden">
-        <h2
+      {/*
+        Mobile and desktop are two parallel trees (this one, and the
+        `hidden lg:block` stage below), because the desktop version is driven by
+        a GSAP 3D card deck that has no mobile equivalent. CSS hides one, but
+        both ship in the HTML — so every heading here was being served twice.
+        Crawlers and screen readers read the DOM, not the media query, and saw
+        duplicate h2/h3 text on the page.
+
+        Rather than merge the trees (which would mean unpicking the GSAP
+        timeline), this copy is marked aria-hidden and its headings are demoted
+        to plain divs. The desktop tree keeps the semantic h2/h3, so exactly one
+        set exists in the accessibility tree and in what Googlebot parses.
+        Visual output is unchanged: the classes and text stay identical.
+      */}
+      <div className="py-16 lg:hidden" aria-hidden>
+        <div
           className="mx-auto max-w-[800px] text-center font-light leading-[1.3] text-[#1D222E] drop-shadow-none text-[31px] sm:text-[42px] whitespace-pre-wrap"
           style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
         >
@@ -362,7 +376,7 @@ export default function Services() {
               {`It should be worth having.`}
             </>
           )}
-        </h2>
+        </div>
 
         <div
           aria-hidden
@@ -387,12 +401,14 @@ export default function Services() {
                 <ServiceIcon type={card.icon} />
               </div>
               <div>
-                <h3
+                {/* div, not h3 — see the aria-hidden note at the top of this
+                    mobile tree. The desktop copy carries the real heading. */}
+                <div
                   className="whitespace-pre-line text-[29px] leading-[0.98]"
                   style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
                 >
                   {card.title}
-                </h3>
+                </div>
                 <p
                   className="mt-3 text-[17px] leading-[1.45] opacity-90"
                   style={{

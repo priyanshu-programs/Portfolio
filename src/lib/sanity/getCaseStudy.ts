@@ -86,6 +86,8 @@ interface RawProject {
   category?: string;
   services?: string;
   year?: string;
+  _createdAt?: string;
+  _updatedAt?: string;
   summary?: string;
   liveUrl?: string;
   cover?: unknown;
@@ -127,6 +129,10 @@ function normalize(raw: RawResult, slug: string): CaseStudyContent {
     category: project.category,
     services: project.services,
     year: project.year,
+    // Renamed off the underscore prefix so the public CaseStudyContent shape
+    // stays free of Sanity's internal field naming.
+    createdAt: project._createdAt,
+    updatedAt: project._updatedAt,
     summary: project.summary,
     liveUrl: project.liveUrl,
     cover: buildImageUrl(project.cover, 2000),

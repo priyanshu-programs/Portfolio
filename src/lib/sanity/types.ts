@@ -210,6 +210,9 @@ export interface CaseStudyContent {
   category?: string;
   services?: string;
   year?: string;
+  /** Sanity's document timestamps (ISO 8601), used for JSON-LD recency signals. */
+  createdAt?: string;
+  updatedAt?: string;
   summary?: string;
   liveUrl?: string;
   cover?: string;
