@@ -7,6 +7,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "@/components/transition/SmartLink";
 import { useSiteContent } from "@/components/ContentProvider";
 import HoverPreviewCard from "@/components/ui/HoverPreviewCard";
+import ComingSoonNote from "@/components/work/ComingSoonNote";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -46,6 +47,7 @@ const MoreWorkButton = () => {
 // without downloading the full ~2500px source images.
 type WorkRow = {
   name: string;
+  category?: string;
   services?: string;
   /** Shown only on the mobile card, paired with `services`. */
   year?: string;
@@ -55,13 +57,22 @@ type WorkRow = {
   /** Hover-card overrides; each falls back to `image` / `bgColor`. */
   hoverImage?: string;
   hoverBg?: string;
+  /** In progress: notes the mobile card and makes the row non-clickable. */
+  comingSoon?: boolean;
+  comingSoonLabel?: string;
+  /** Contents of that note; see WorkProject in lib/sanity/types.ts. */
+  noteHeader?: string[];
+  noteTitle?: string;
+  noteDate?: string;
+  noteHours?: number[];
+  noteMeridiem?: "am" | "pm";
 };
 
 const WORK_ROWS: WorkRow[] = [
-  { name: "TWICE", services: "Interaction & Development", year: "2026", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=640&auto=format&fit=crop" },
-  { name: "TWICE", services: "Interaction & Development", year: "2026", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=640&auto=format&fit=crop" },
-  { name: "TWICE", services: "Interaction & Development", year: "2025", image: "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=640&auto=format&fit=crop" },
-  { name: "TWICE", services: "Interaction & Development", year: "2025", image: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", category: "Web Design", services: "Interaction & Development", year: "2026", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", category: "Web Design", services: "Interaction & Development", year: "2026", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", category: "Web Design", services: "Interaction & Development", year: "2025", image: "https://images.unsplash.com/photo-1634017839464-5c339afa60f0?q=80&w=640&auto=format&fit=crop" },
+  { name: "TWICE", category: "Web Design", services: "Interaction & Development", year: "2025", image: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=640&auto=format&fit=crop" },
 ];
 
 const DEFAULT_QUOTE =
@@ -87,6 +98,7 @@ export default function AboutWork() {
     if (!content) return WORK_ROWS;
     return (homeWork ?? []).map((p) => ({
       name: p.title ?? "",
+      category: p.category,
       services: p.services,
       year: p.year,
       image: p.thumbnail ?? "",
@@ -94,6 +106,13 @@ export default function AboutWork() {
       bgColor: p.bgColor,
       hoverImage: p.hoverImage,
       hoverBg: p.hoverBg,
+      comingSoon: p.comingSoon,
+      comingSoonLabel: p.comingSoonLabel,
+      noteHeader: p.noteHeader,
+      noteTitle: p.noteTitle,
+      noteDate: p.noteDate,
+      noteHours: p.noteHours,
+      noteMeridiem: p.noteMeridiem,
     }));
   }, [content, homeWork]);
 
@@ -161,7 +180,7 @@ export default function AboutWork() {
         }
       );
 
-      /* ── 'Recent work' label: fade-in only ─────────────── */
+      /* ── 'Selected work' heading: fade-in only ─────────── */
       gsap.fromTo(
         ".reveal-bottom",
         { opacity: 0 },
@@ -223,10 +242,10 @@ export default function AboutWork() {
         {/* Left Main Text — word-by-word reveal */}
         <div className="lg:w-[55%]">
           <p
-            className="text-[clamp(1.462rem,2.328vw+0.83rem,2.708rem)] leading-[1.35] text-black m-0 sm:text-about-quote"
+            className="text-[clamp(1.462rem,2.328vw+0.83rem,calc(2.708rem*var(--fluid-scale)))] leading-[1.35] text-black m-0 sm:text-about-quote"
             style={{
-              fontFamily: "var(--font-helv)",
-              fontWeight: 300,
+              fontFamily: "var(--font-manrope-stack)",
+              fontWeight: 400,
               letterSpacing: "-0.01em",
               margin: 0,
             }}
@@ -245,9 +264,9 @@ export default function AboutWork() {
           <p
             className="reveal-text text-body text-black/80 m-0"
             style={{
-              fontFamily: "var(--font-helv)",
+              fontFamily: "var(--font-manrope-stack)",
               fontWeight: 300,
-              fontSize: "clamp(1.052rem, 0.449vw + 0.898rem, 1.263rem)",
+              fontSize: "clamp(1.052rem, 0.449vw + 0.898rem, calc(1.263rem * var(--fluid-scale)))",
               lineHeight: 1.497,
               margin: 0,
             }}
@@ -265,23 +284,23 @@ export default function AboutWork() {
         </div>
       </div>
 
-      {/* Middle Section: Recent Work */}
-      <div className="reveal-bottom-trigger mt-20 lg:mt-[6vw] flex flex-col sm:flex-row items-end justify-start">
-        <div className="lg:w-[55%] w-full mt-10 sm:mt-0">
-          <p
-            id="work"
-            className="reveal-bottom pb-4 text-[13px] font-semibold uppercase tracking-[0.1em] text-[#8c8c8c] lg:pb-5"
-          >
-            Recent work
-          </p>
-        </div>
+      {/* Middle Section: Selected work heading */}
+      <div id="work" className="reveal-bottom-trigger mt-20 lg:mt-[6vw]">
+        <h2
+          className="reveal-bottom tracking-[-0.03em] text-[#1d1d1f]"
+          style={{ fontSize: "clamp(1.6rem, 2.2vw, calc(2.4rem * var(--fluid-scale)))" }}
+        >
+          Recent work{" "}
+          <span className="text-[#a3a3a3]">({workRows.length})</span>
+        </h2>
       </div>
 
       {/* Divider */}
 
 
-      {/* Work rows — mirrors the /work index list view exactly */}
-      <div ref={workRowsRef} className="work-rows-container mt-0 relative">
+      {/* Work rows — mirrors the /work index list view: same four desktop
+          columns (client/category/services/year) under the same header. */}
+      <div ref={workRowsRef} className="work-rows-container mt-8 lg:mt-10 relative">
         <HoverPreviewCard
           items={previewItems}
           activeIndex={hoveredIndex}
@@ -289,14 +308,24 @@ export default function AboutWork() {
           scale={1.0}
         />
 
+        {/* Column labels — same markup as the /work index header. */}
+        <div className="hidden grid-cols-[1.8fr_1.1fr_1.4fr_0.4fr] gap-4 pb-4 text-caption font-semibold uppercase tracking-[0.1em] text-[#8c8c8c] border-b border-[#e5e5e5] md:grid">
+          <span>CLIENT</span>
+          <span>CATEGORY</span>
+          <span>SERVICES</span>
+          <span className="justify-self-end">YEAR</span>
+        </div>
+
         <div>
           {workRows.map((row, idx) => {
             // Below md this is a stacked card (image / title / meta); at md+ it
             // becomes the original two-column list row. One tree, toggled by
             // Tailwind rather than a matchMedia fork — see the mobile doctrine
             // note in globals.css.
-            const rowClassName =
-              "work-row group block cursor-pointer py-8 md:grid md:grid-cols-[1.8fr_1.4fr] md:items-center md:gap-4 md:border-b md:border-[#e5e5e5] md:py-14";
+            // A coming-soon row is inert, so it loses the pointer cursor —
+            // same reasoning as ProjectRow on the /work index.
+            const rowClassName = `work-row group block py-8 md:grid md:grid-cols-[1.8fr_1.1fr_1.4fr_0.4fr] md:items-center md:gap-4 md:border-b md:border-[#e5e5e5] md:py-14 ${row.comingSoon ? "cursor-default" : "cursor-pointer"
+              }`;
             const cardImage = row.hoverImage || row.image;
             const rowContent = (
               <>
@@ -307,7 +336,13 @@ export default function AboutWork() {
                   className="relative aspect-[400/360] w-full overflow-hidden rounded-[2px] md:hidden"
                   style={{ backgroundColor: row.hoverBg ?? row.bgColor ?? "#f1f1f1" }}
                 >
-                  <div className="absolute inset-x-[6%] inset-y-[19.44%] overflow-hidden rounded-[2px]">
+                  {/* The dim rides on this window rather than the box around
+                      it: the note is a sibling below, and greying the parent
+                      would drag the note down with it. */}
+                  <div
+                    className={`absolute inset-x-[6%] inset-y-[19.44%] overflow-hidden rounded-[2px] ${row.comingSoon ? "work-card-dim" : ""
+                      }`}
+                  >
                     {/* `cardImage` is `||`-folded upstream: an unset CMS image
                         resolves to "", which would render <img src=""> instead
                         of falling through to the colour block. */}
@@ -321,47 +356,97 @@ export default function AboutWork() {
                       />
                     )}
                   </div>
+                  {row.comingSoon && (
+                    <ComingSoonNote
+                      header={row.noteHeader}
+                      title={row.noteTitle}
+                      date={row.noteDate}
+                      hours={row.noteHours}
+                      meridiem={row.noteMeridiem}
+                      label={row.comingSoonLabel}
+                    />
+                  )}
                 </div>
-                <h2 className="mt-6 text-[34px] font-medium leading-none tracking-[-0.02em] text-[#1d1d1f] transition-transform duration-300 ease-out group-hover:translate-x-3 sm:text-[40px] md:mt-0 md:text-[46px]">
-                  <span>{row.name}</span>
-                  <sup className="ml-1 hidden text-[0.4em] leading-none md:inline">
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="inline-block opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                    >
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </sup>
+                <h2
+                  className={`mt-6 text-[34px] font-medium leading-none tracking-[-0.02em] text-[#1d1d1f] sm:text-[40px] md:mt-0 md:text-row-title ${row.comingSoon
+                      ? ""
+                      : "transition-transform duration-300 ease-out group-hover:translate-x-3"
+                    }`}
+                >
+                  {/* Dim the name only — the pill beside it is the status and
+                      stays at full strength. */}
+                  <span className={row.comingSoon ? "work-card-dim inline-block" : ""}>
+                    {row.name}
+                  </span>
+                  {row.comingSoon ? (
+                    /* Desktop rows have no card to tape, so the status rides in
+                       the arrow's slot — the same swap the /work list makes.
+                       Below md the tape on the card above already says it. */
+                    <span className="ml-4 hidden shrink-0 items-center whitespace-nowrap rounded-full border border-[#1d1d1f]/25 bg-[var(--color-note)] px-[calc(14px*var(--fluid-scale))] py-[calc(5px*var(--fluid-scale))] align-middle text-caption font-semibold uppercase tracking-[0.12em] text-[#1d1d1f] md:inline-flex">
+                      {row.comingSoonLabel?.trim() || "Coming soon"}
+                    </span>
+                  ) : (
+                    <sup className="ml-1 hidden text-[0.4em] leading-none md:inline">
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="inline-block opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      >
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </sup>
+                  )}
                 </h2>
-                <span className="hidden justify-self-end text-[17px] font-normal text-[#1d1d1f] md:inline">
+                <span
+                  className={`hidden text-row-meta font-normal text-[#1d1d1f] md:inline ${row.comingSoon ? "work-card-dim" : ""
+                    }`}
+                >
+                  {row.category || "Design"}
+                </span>
+                <span
+                  className={`hidden text-row-meta font-normal text-[#1d1d1f] md:inline ${row.comingSoon ? "work-card-dim" : ""
+                    }`}
+                >
                   {row.services || "Design & development"}
                 </span>
+                <span
+                  className={`hidden justify-self-end text-row-meta font-semibold text-[#1d1d1f] md:inline ${row.comingSoon ? "work-card-dim" : ""
+                    }`}
+                >
+                  {row.year || "2026"}
+                </span>
                 {/* Mobile-only specifications line: services left, year right. */}
-                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#898989] pt-4 md:hidden">
-                  <span className="text-[14px] font-medium text-[#1d1d1f]/60">
+                <div
+                  className={`mt-4 flex items-center justify-between gap-4 border-t border-[#898989] pt-4 md:hidden ${row.comingSoon ? "work-card-dim" : ""
+                    }`}
+                >
+                  <span className="text-[calc(14px*var(--fluid-scale))] font-medium text-[#1d1d1f]/60">
                     {row.services || "Design & development"}
                   </span>
-                  <span className="text-[14px] font-medium text-[#1d1d1f]/60">{row.year || "2026"}</span>
+                  <span className="text-[calc(14px*var(--fluid-scale))] font-medium text-[#1d1d1f]/60">{row.year || "2026"}</span>
                 </div>
               </>
             );
 
-            return row.slug ? (
+            return row.slug && !row.comingSoon ? (
               <Link
                 key={idx}
                 href={`/work/${row.slug}`}
                 className={rowClassName}
                 onMouseEnter={() => handleRowEnter(idx)}
                 onMouseLeave={handleRowLeave}
+                /* A case study is a case study wherever it is opened from —
+                   these homepage rows, a /work card, or the next-project link
+                   at the foot of a study. Same destination, same voice. */
+                sound="projects-click"
               >
                 {rowContent}
               </Link>

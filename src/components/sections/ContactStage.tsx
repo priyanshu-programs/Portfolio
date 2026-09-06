@@ -15,6 +15,7 @@ import CalendlyEmbed from "@/components/ui/CalendlyEmbed";
 import BloomFieldGradient from "@/components/ui/BloomFieldGradient";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import NumberedField from "@/components/ui/NumberedField";
+import { playSound } from "@/lib/soundBus";
 import {
   FIELD_MAX_LENGTH,
   INITIAL_CONTACT_STATE,
@@ -42,7 +43,7 @@ const COPY = {
     "If you want to move faster, pick a time now. Otherwise I'll reply by email.",
 } as const;
 
-/** Field order is the numbering — 01 through 05. */
+/** Field order is the numbering — 01 through 08. */
 const FIELDS: {
   name: ContactFieldName;
   label: string;
@@ -66,25 +67,47 @@ const FIELDS: {
       autoComplete: "email",
     },
     {
-      name: "organization",
-      label: "What's the name of your organization?",
-      placeholder: "John & Doe ®",
-      autoComplete: "organization",
+      name: "socials",
+      label: "Where can I find you online?",
+      placeholder: "@yourhandle, or a link",
+      // Optional on purpose: plenty of good projects arrive with nothing to
+      // show yet, and a dead end here is a closed tab.
     },
     {
       name: "services",
-      label: "What services are you looking for?",
+      label: "Which service are you interested in?",
       // Free text rather than a select: the placeholder is a comma-list, which a
       // select can't produce, and a boxed multi-select would break the bare
       // underline language every other field uses. The value is unstructured on
-      // purpose — a human reads it in an inbox, nothing queries it.
-      placeholder: "Web Design, Web Development ...",
+      // purpose — a human reads it in an inbox, nothing queries it. Same
+      // reasoning applies to the budget field below.
+      placeholder: "Design, dev, or both — your call",
+      required: true,
+    },
+    {
+      name: "budget",
+      label: "What's the budget looking like?",
+      placeholder: "Ballpark is plenty.",
+      required: true,
+    },
+    {
+      name: "problem",
+      label: "What do you need solved?",
+      placeholder: "Whatever's top of mind",
+      required: true,
+      multiline: true,
+    },
+    {
+      name: "success",
+      label: "What does success look like for this project?",
+      placeholder: "What does \"it worked\" feel like?",
+      required: true,
+      multiline: true,
     },
     {
       name: "message",
       label: "Your message",
       placeholder: "", // filled in at render — it uses the owner's first name
-      required: true,
       multiline: true,
     },
   ];
@@ -175,35 +198,87 @@ export default function ContactStage() {
   }, [showSuccessContent]);
 
   // ── Entrance ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const ctx = gsap.context(() => {
-      const rows = gsap.utils.toArray<HTMLElement>(".contact-field");
-      const targets = [...rows, ".contact-submit"];
-      const heading = headingRef.current;
+  // useLayoutEffect, not useEffect: every target is pre-hidden here, and a
+  // plain effect lands that pre-hide *after* first paint — one frame of the
+  // whole form at rest, then a snap to opacity 0 as it starts over. The old
+  // code was worse than that: only the heading was pre-set synchronously,
+  // while the fields' from-state lived inside the fonts.ready callback, so a
+  // cold load painted the form fully visible for as long as the webfonts took
+  // to resolve before it blinked out and faded back in.
+  //
+  // The pre-hide is JS, not CSS, on purpose. This form works without JS —
+  // NumberedField is uncontrolled for exactly that reason and the action
+  // treats a missing timestamp as "allow" — so a CSS `opacity: 0` would leave
+  // a script-blocked visitor staring at an invisible, unusable contact form.
+  useLayoutEffect(() => {
+    // The entrance targets only exist on the form side of the swap. On the
+    // success side the reveal effect below owns the DOM instead.
+    if (showSuccessContent) return;
 
+    const root = containerRef.current;
+    if (!root) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Scoped to `root`, matching every other toArray here and in AboutStage.
+    // gsap.context scopes tween targets given as selector strings, but a bare
+    // toArray queries the whole document.
+    const rows = gsap.utils.toArray<HTMLElement>(".contact-field", root);
+    const submit = gsap.utils.toArray<HTMLElement>(".contact-submit", root);
+    const sidebar = gsap.utils.toArray<HTMLElement>(".contact-sidebar", root);
+    const heading = headingRef.current;
+    const stagger = [...rows, ...submit];
+
+    let entranceTl: gsap.core.Timeline | null = null;
+    let disposed = false;
+
+    const ctx = gsap.context(() => {
       if (reduced) {
-        gsap.set(targets, { opacity: 1, y: 0 });
+        gsap.set([...stagger, ...sidebar], { opacity: 1, y: 0 });
         gsap.set(heading, { yPercent: 0, opacity: 1, filter: "blur(0px)" });
         return;
       }
 
+      // Pre-hide everything synchronously, in this same pre-paint commit. The
+      // heading's from-state is the exact inverse of the success-collapse's
+      // exit below — keep the two in step.
       gsap.set(heading, { yPercent: 110, opacity: 0, filter: "blur(6px)" });
+      gsap.set(stagger, { opacity: 0, y: 24 });
+      gsap.set(sidebar, { opacity: 0, y: 24 });
 
       const playEntrance = () => {
-        gsap.to(heading, {
-          yPercent: 0,
-          opacity: 1,
-          filter: "blur(0px)",
-          duration: 0.75,
-          ease: "power3.out",
-        });
+        // The fonts.ready callback cannot be unsubscribed, so a route change
+        // landing mid-wait still fires it — after ctx.revert() has restored
+        // these nodes. Same guard, same reason, as AboutStage's entrance.
+        if (disposed) return;
 
-        gsap.fromTo(
-          targets,
-          { opacity: 0, y: 24 },
-          { opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: "power3.out", delay: 0.1 }
-        );
+        // One timeline rather than two loose tweens, so the heading and the
+        // rows below it are provably in step instead of coincidentally so.
+        const tl = gsap.timeline();
+        entranceTl = tl;
+
+        if (heading) {
+          tl.to(
+            heading,
+            { yPercent: 0, opacity: 1, filter: "blur(0px)", duration: 0.75, ease: "power3.out" },
+            0
+          );
+        }
+
+        if (stagger.length) {
+          tl.to(
+            stagger,
+            { opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: "power3.out" },
+            0.1
+          );
+        }
+
+        // The sidebar arrives on the same gesture as the form. Left out, it
+        // popped in fully-formed beside a column that was still staggering.
+        // Held until the first rows have landed so the eye still starts left.
+        if (sidebar.length) {
+          tl.to(sidebar, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 0.3);
+        }
       };
 
       if (document.fonts?.ready) {
@@ -213,8 +288,15 @@ export default function ContactStage() {
       }
     }, containerRef);
 
-    return () => ctx.revert();
-  }, []);
+    return () => {
+      disposed = true;
+      entranceTl?.kill();
+      ctx.revert();
+    };
+    // showSuccessContent is a guard, not a trigger: it only goes false → true,
+    // and this effect's job on that edge is to tear the entrance down before
+    // the success DOM mounts.
+  }, [showSuccessContent]);
 
   // ── Submit success: collapse the form ──────────────────────────────────
   // Fields fade out top-to-bottom, then the form clips shut from the bottom
@@ -232,6 +314,11 @@ export default function ContactStage() {
   // is precisely what clipPath does and animating `height` would not.
   useEffect(() => {
     if (!isSuccess) return;
+
+    // Before the reduced-motion branch below, so a reduced-motion visitor still
+    // gets the confirmation. This is the one sound in the system carrying real
+    // information rather than texture.
+    playSound("success");
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) {
@@ -371,6 +458,19 @@ export default function ContactStage() {
     return () => ctx.revert();
   }, [showSuccessContent]);
 
+  // ── Error sound ─────────────────────────────────────────────────────────
+  // Separate from the focus effect below, which bails when there is no *field*
+  // error and so would swallow the server/form-level failure entirely — the
+  // case where feedback matters most.
+  //
+  // Keyed on `state`, not `state.status`: useActionState returns a fresh object
+  // per submission, so two consecutive failed submits both fire. Keying on the
+  // status string would make the second one silent.
+  useEffect(() => {
+    if (state.status !== "error") return;
+    playSound("error");
+  }, [state]);
+
   // ── Error focus ─────────────────────────────────────────────────────────
   // Move the caret to the first thing that needs fixing, and shake it — a
   // scrolled-away error is otherwise invisible on a page this tall.
@@ -422,8 +522,11 @@ export default function ContactStage() {
   const mailtoHref = (() => {
     const subject = `Enquiry from ${values.name || "the site"}`;
     const body = [
-      values.organization ? `Organization: ${values.organization}` : null,
+      values.socials ? `Socials: ${values.socials}` : null,
       values.services ? `Services: ${values.services}` : null,
+      values.budget ? `Budget: ${values.budget}` : null,
+      values.problem ? `\nProblem to solve:\n${values.problem}` : null,
+      values.success ? `\nDefinition of success:\n${values.success}` : null,
       "",
       values.message ?? "",
     ]
@@ -446,7 +549,7 @@ export default function ContactStage() {
       {showBackgroundGradient && (
         <BloomFieldGradient className="pointer-events-none z-0" />
       )}
-      <div className="relative z-10 mx-auto w-full max-w-[1400px] px-6 py-[clamp(5rem,12vh,8rem)] md:px-[40px] lg:flex lg:gap-24">
+      <div className="relative z-10 mx-auto w-full max-w-[calc(1400px*var(--fluid-scale))] px-6 py-[clamp(5rem,12vh,8rem)] md:px-[40px] lg:flex lg:gap-24">
         {/* ── Left: Heading and Form ────────────────────────── */}
         {/* Widens to the full container on success. The scheduler is a fixed-
             layout third-party page: inside the 65% column it gets ~800px, which
@@ -474,15 +577,20 @@ export default function ContactStage() {
             className={`font-medium leading-[1.1] tracking-[-0.03em] text-ink ${
               showSuccessContent ? "max-w-[20ch]" : "max-w-[12ch]"
             }`}
-            style={{ fontSize: "clamp(3.5rem, 8vw, 6rem)" }}
+            style={{ fontSize: "clamp(3.5rem, 8vw, calc(6rem * var(--fluid-scale)))" }}
           >
             {showSuccessContent ? (
               // Per word, so the reveal effect below can stagger them. Same
               // .reveal-word / .reveal-inner pair AboutStage uses.
               successHeading.split(" ").map((word, i) => (
+                // pb/-mb pair is descender clearance: the overflow-hidden mask
+                // is only as tall as the line box, and leading-[1.1] leaves
+                // less room below the baseline than Manrope's descenders need.
+                // The negative margin cancels the padding so the outer box
+                // height — and everything below it — is unchanged.
                 <span
                   key={i}
-                  className="reveal-word inline-block overflow-hidden align-bottom mr-[0.25em]"
+                  className="reveal-word inline-block overflow-hidden align-bottom mr-[0.25em] pb-[0.15em] -mb-[0.15em]"
                 >
                   <span className="reveal-inner inline-block will-change-transform">
                     {word}
@@ -490,7 +598,13 @@ export default function ContactStage() {
                 </span>
               ))
             ) : (
-              <span className="inline-block overflow-hidden align-bottom">
+              // pb/-mb pair is descender clearance for the reveal mask: the
+              // overflow-hidden box is only as tall as the line boxes, and
+              // leading-[1.1] leaves less room below the last baseline than
+              // Manrope's descenders need, so the "g" got sliced. The negative
+              // margin cancels the padding, keeping the outer height — and the
+              // .contact-sidebar alignment calc — unchanged.
+              <span className="inline-block overflow-hidden align-bottom pb-[0.15em] -mb-[0.15em]">
                 <span
                   ref={headingRef}
                   className="contact-heading-inner inline-block will-change-transform"
@@ -513,7 +627,7 @@ export default function ContactStage() {
                 {/* The success heading itself renders in the <h1> above. */}
                 <p
                   className="contact-success-body max-w-[38ch] text-ink"
-                  style={{ fontSize: "clamp(1rem, 1.15vw, 1.2rem)", lineHeight: 1.5 }}
+                  style={{ fontSize: "clamp(1rem, 1.15vw, calc(1.2rem * var(--fluid-scale)))", lineHeight: 1.5 }}
                 >
                   {successBody}
                 </p>

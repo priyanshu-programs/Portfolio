@@ -72,8 +72,15 @@ export default function WorkPage() {
         />
 
         <div
-          className="mx-auto flex w-full max-w-none flex-1 flex-col"
+          className="mx-auto flex w-full flex-1 flex-col"
           style={{
+            /* The gutter clamp stops at 12.5rem, so past ~2000px it is the
+               CONTENT column that keeps growing, not the margin — at 2560 that
+               left a ~2160px measure carrying 17px row text. Capping the column
+               (rather than scaling the type to fill it) is the fix; the extra
+               width becomes margin. Tracks --fluid-scale so it still grows with
+               everything else, just bounded. Mirrors CaseStudy's GUTTER. */
+            maxWidth: "calc(1680px * var(--fluid-scale))",
             paddingLeft: "clamp(1.5rem, 10vw, 12.5rem)",
             paddingRight: "clamp(1.5rem, 10vw, 12.5rem)",
           }}
@@ -82,7 +89,7 @@ export default function WorkPage() {
           <section className="w-full pt-[clamp(3.5rem,8vw,6rem)]">
             <h1
               className="tracking-[-0.04em] font-medium text-[#1d1d1f]"
-              style={{ fontSize: "clamp(3.9rem, 6.6vw, 7.2rem)", lineHeight: 1.03 }}
+              style={{ fontSize: "clamp(3.9rem, 6.6vw, calc(7.2rem * var(--fluid-scale)))", lineHeight: 1.03 }}
             >
               {["Good work takes time.", "These took mine."].map((line) => (
                 <span key={line} className="block overflow-hidden pb-1">

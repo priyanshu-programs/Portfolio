@@ -18,6 +18,11 @@ const DEFAULT_NAME = "Priyanshu Roy";
 /** Matches /work's text column so the two pages line up. */
 const GUTTER = "clamp(1.5rem, 10vw, 12.5rem)";
 
+/** Past ~2000px the gutter clamp is flat, so the content column is what keeps
+ *  growing. Bounding it keeps the measure readable on wide displays; the
+ *  surplus becomes margin. Must match /work's column cap. */
+const COLUMN_MAX = "calc(1680px * var(--fluid-scale))";
+
 const ArrowUpRight = () => (
   <svg
     width="16"
@@ -145,13 +150,13 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
 
         <div
           className="mx-auto flex w-full flex-1 flex-col"
-          style={{ paddingInline: "var(--cs-gutter)" }}
+          style={{ paddingInline: "var(--cs-gutter)", maxWidth: COLUMN_MAX }}
         >
           {/* Title + service label */}
           <header className="pt-[clamp(3.5rem,8vw,6.5rem)] text-center">
             <h1
               className="font-medium tracking-[-0.04em]"
-              style={{ fontSize: "clamp(3.25rem, 11vw, 6.75rem)", lineHeight: 0.95 }}
+              style={{ fontSize: "clamp(3.25rem, 11vw, calc(6.75rem * var(--fluid-scale)))", lineHeight: 0.95 }}
             >
               <span className="block overflow-hidden pb-2">
                 <span className="headline-line block will-change-transform">
@@ -164,13 +169,13 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
               <div className="fade-in-up mt-[clamp(1.5rem,8vw,6.625rem)]">
                 <span
                   className="block font-medium text-[0.866rem] uppercase opacity-60"
-                  style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+                  style={{ fontFamily: "var(--font-manrope-stack)" }}
                 >
                   Service:
                 </span>
                 <span 
-                  className="mt-2 block font-medium text-[clamp(0.9375rem,1.4vw,1.125rem)] uppercase"
-                  style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+                  className="mt-2 block font-medium text-[clamp(0.9375rem,1.4vw,calc(1.125rem*var(--fluid-scale)))] uppercase"
+                  style={{ fontFamily: "var(--font-manrope-stack)" }}
                 >
                   {project.services}
                 </span>
@@ -219,8 +224,8 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
             className="fade-in-up mt-6 flex justify-between lg:grid lg:grid-cols-2 lg:gap-[clamp(2.5rem,5vw,5rem)] items-center border-t pt-[0.9rem] text-[0.9rem] uppercase tracking-normal"
             style={{ borderColor: "var(--cs-ink)", color: "var(--cs-ink)" }}
           >
-            <span className="text-left font-medium" style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}>{project.title}</span>
-            <span className="text-right lg:text-left font-medium" style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}>/ Overview</span>
+            <span className="text-left font-medium" style={{ fontFamily: "var(--font-manrope-stack)" }}>{project.title}</span>
+            <span className="text-right lg:text-left font-medium" style={{ fontFamily: "var(--font-manrope-stack)" }}>/ Overview</span>
           </div>
 
           {/* Overview */}
@@ -231,7 +236,7 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
                   <h2
                     className="max-w-[22ch] font-medium tracking-[-0.03em]"
                     style={{
-                      fontSize: "clamp(1.75rem, 2.8vw, 2.6rem)",
+                      fontSize: "clamp(1.75rem, 2.8vw, calc(2.6rem * var(--fluid-scale)))",
                       lineHeight: 1.15,
                     }}
                   >
@@ -265,14 +270,14 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
                 ).map(([label, paragraphs]) =>
                   paragraphs?.length ? (
                     <div key={label}>
-                      <h3 className="text-[clamp(1.125rem,1.5vw,1.375rem)] font-medium tracking-[-0.01em]">
+                      <h3 className="text-[clamp(1.125rem,1.5vw,calc(1.375rem*var(--fluid-scale)))] font-medium tracking-[-0.01em]">
                         {label}
                       </h3>
                       <div className="mt-5 space-y-5">
                         {paragraphs.map((paragraph, i) => (
                           <p
                             key={i}
-                            className="max-w-[62ch] text-[clamp(0.9375rem,1.1vw,1.0625rem)] leading-[1.7]"
+                            className="max-w-[62ch] text-[clamp(0.9375rem,1.1vw,calc(1.0625rem*var(--fluid-scale)))] leading-[1.7]"
                             style={{ color: "var(--cs-muted)" }}
                           >
                             {paragraph}

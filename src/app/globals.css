@@ -10,15 +10,6 @@
   font-display: block;
 }
 
-@font-face {
-  font-family: "Helvetica Neue 65 Medium";
-  src: url("/fonts/HelveticaNeue-Medium.otf") format("opentype"),
-       url("/fonts/HelveticaNeueMedium.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
 @theme {
   --color-cream: #fffcfa;
   --color-ink: #1d222e;
@@ -33,21 +24,70 @@
   --color-muted: #858ea3;
   --color-subtle: #5c5c5c;
   --color-border-deep: #13284b;
+  /* The coming-soon sticky note. A warm amber, not the pale greenish yellow a
+     highlighter gives you. Matched to the photographed sheet the note is
+     painted with, since it shows while that file loads — and it is also the
+     fill behind the "Coming soon" pills on the work list. */
+  --color-note: #f0d86a;
 
-  --font-sans: var(--font-hanken), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-manrope-stack);
   --font-script: "Citadel Script Std";
+  /* Loaded via next/font in layout.tsx; used only by the coming-soon note. */
+  --font-marker: var(--font-marker-face), "Bradley Hand", "Segoe Script", cursive;
+  /* Loaded via next/font in layout.tsx; used only by the coming-soon note's title. */
+  --font-caveat: var(--font-caveat-face), "Bradley Hand", "Segoe Script", cursive;
+
+  /* Card-count breakpoint for the work grid. The only discrete breakpoint the
+     site needs above `lg` — you cannot fluidly interpolate 2 cards to 3, so
+     this is the one thing --fluid-scale (below) genuinely cannot express.
+     Deliberately not a general-purpose desktop tier: everything else that
+     grows past 1440px does so continuously. */
+  --breakpoint-3xl: 120rem;
 }
 
-/* The Helvetica stack shared by the about and services blocks. A system stack,
-   so it resolves to real Helvetica Neue on macOS and to Arial elsewhere; the
-   weight steps those blocks use (300/400) render distinctly in both.
-   Self-hosting the real faces later is a change to this one line.
+/* Manrope, self-hosted via next/font/google in layout.tsx, shared by the about
+   and services blocks. Unlike a system font stack this renders identically for
+   every visitor regardless of OS.
 
    Declared on :root rather than in @theme deliberately — @theme tokens are
    tree-shaken unless a matching utility class is used, and this is referenced
-   only as var(--font-helv) from inline styles, so there it would be dropped. */
+   only as var(--font-manrope-stack) from inline styles, so there it would be
+   dropped. Named distinctly from --font-manrope, the CSS variable next/font
+   injects on <html> for the raw font family — reusing that name here would
+   make this stack reference itself. */
 :root {
-  --font-helv: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-manrope-stack: var(--font-manrope), "Manrope", Arial, sans-serif;
+
+  /* ── Wide-viewport growth ramp ──────────────────────────────────────────
+     Resolves to exactly 1 at every width ≤1440px, rises linearly to 1.30 at
+     2560px, and stays flat above. Multiply any size by it to make it grow on
+     large displays: `calc(46px * var(--fluid-scale))`.
+
+     Why this exists: the site was solved at 1440px (see the landing-intro
+     comment further down), and every section then grew its own clamp() whose
+     ceiling landed somewhere between 935px and 1600px. Past ~1600px nothing
+     moved — a 2560px display rendered 1440px of content in a pool of dead
+     whitespace. One ramp replaces ~40 bespoke ceilings, so new sections
+     inherit the behavior instead of re-inventing (and re-breaking) it.
+
+     Why 1.30 and not 2560/1440 = 1.78: a 27" 1440p and a 27" 4K display sit
+     at the same desk distance. What a wider screen gives you is more ROOM,
+     not more distance, so the correction is deliberately sublinear. Retuning
+     is a one-character edit here rather than 40 edits across the tree.
+
+     Why it stops at 2560: ultrawides (3440x1440) have the SAME vertical space
+     as 2560x1440, and the hero/about/contact stages are height-constrained
+     (100dvh, 12vh padding). Growing past 2560 would overflow them vertically.
+     Capping renders 3440 as "2560 with wider margins", which is correct.
+
+     Lives on :root, not in @theme, for the reason documented above: it is
+     referenced only as var(), never via a matching utility class, so @theme
+     would tree-shake it away.
+
+     INVARIANT: this is 1 below 1440px, so any edit that multiplies by it must
+     leave the ≤1440px rendering pixel-identical. If a change moves anything at
+     1440, it multiplied a clamp's MINIMUM or vw term instead of its ceiling. */
+  --fluid-scale: clamp(1, 1 + (100vw - 1440px) / 1120px * 0.3, 1.3);
 }
 
 /* ── Marquee ─────────────────────────────────────────── */
@@ -144,7 +184,17 @@ html.lenis body {
   overscroll-behavior: contain;
 }
 
-.lenis.lenis-stopped {
+/* Upstream lenis.css ships this as `overflow: clip` on the element Lenis
+   scrolls, which here is <html>. It was moved to <body> when the site ran a
+   view transition, because root overflow clipped the transition's snapshot and
+   this class is raised *during* navigation (caseStudyAdvance calls
+   `__lenis.stop()` immediately before pushing the route).
+
+   The transition is gone, but leave this on <body>. Lenis's stop() already
+   discards every scroll input in JS, so the CSS is only a backstop against a
+   native scroll from a source Lenis doesn't intercept — and it does that job
+   equally well here, with none of the root-overflow side effects. */
+.lenis.lenis-stopped body {
   overflow: hidden;
 }
 
@@ -158,14 +208,41 @@ html.lenis body {
 }
 
 /* ── Resets ───────────────────────────────────────────── */
+
+/* Keep `overflow` off <html>, in both axes.
+
+   This began as a hard requirement of the page transition: a non-`visible`
+   overflow on <html> clipped the view-transition root snapshot, so the reveal
+   had nothing to expand through. That transition has been removed, so the
+   original reason no longer applies — but the arrangement below is settled,
+   works, and is what every route is laid out against, so it stays.
+
+   Horizontal overflow is contained one level down: `.page-wrapper` wraps every
+   route, `#scroll-root` hosts everything else (footer, overlays), and
+   `.no-overflow` is applied at the individual call sites that need it. If a
+   sideways scrollbar ever appears, fix the element that overflows or add
+   `.no-overflow` to its container rather than reinstating overflow here.
+
+   If a future page transition snapshots the document root, this becomes
+   load-bearing again. */
 html,
 body {
   margin: 0;
   padding: 0;
   width: 100%;
   max-width: 100%;
+}
+
+/* The containment that would otherwise sit on <html>, one level down (see the
+   reset above). SmoothScroll's host div wraps the route tree AND the footer, so
+   it catches anything rendered outside a `.page-wrapper`. `overflow-y` stays
+   visible — GSAP pins need to escape it. */
+#scroll-root {
+  width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
   overflow-x: clip;
+  overflow-y: visible;
 }
 
 /* Kill the Tailwind v4 default border-color on all elements.
@@ -211,18 +288,33 @@ body::-webkit-scrollbar {
 body {
   background: #ffffff;
   color: #000;
-  font-family: var(--font-hanken), "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-manrope-stack);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-html.is-transitioning {
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
-}
+/* Scroll lock for the landing intro (LandingIntro's lockViewport/unlockViewport).
 
+   Deliberately does NOT put `overflow` on <html> — see the reset above. It used
+   to set `overflow: hidden` on both axes there, which clipped the page
+   transition's root snapshot for as long as the class was up, so any navigation
+   overlapping the intro's lock window inherited a broken reveal.
+
+   `position: fixed` on <body> is the lock instead: it takes the body out of
+   flow so the document cannot scroll, without touching the root's overflow.
+   Lenis is stopped in JS alongside this (LandingIntro calls it directly, and
+   caseStudyAdvance/FloatingMenu use the same `__lenis.stop()` primitive), so
+   this is belt-and-braces against native scroll rather than the only guard.
+
+   `top: 0` matters: the intro only ever runs at scroll position 0, so pinning
+   the body there cannot shift the page. Do not reuse this lock for a mid-page
+   freeze without capturing and restoring scrollTop — that is the classic
+   `position: fixed` scroll-jump. */
 body.is-transitioning {
-  overflow-x: hidden !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
   overscroll-behavior: none;
   pointer-events: none !important;
 }
@@ -249,36 +341,63 @@ body.is-transitioning {
   }
 }
 
-/* ── Fluid Typography Utilities (Tailwind v4 @utility API) ── */
+/* ── Fluid Typography Utilities (Tailwind v4 @utility API) ──
+   Each ceiling is multiplied by --fluid-scale so growth continues past the
+   width where the vw term used to flatten out. Only the MAX term is wrapped —
+   the min and vw terms are untouched, which is what keeps the ≤1440px
+   rendering identical (--fluid-scale is 1 there). */
 
 @utility text-hero-label {
-  /* 22px → 30px */
-  font-size: clamp(1.375rem, 1.25vw + 0.875rem, 1.875rem);
+  /* 22px → 30px, then → 39px at 2560 */
+  font-size: clamp(1.375rem, 1.25vw + 0.875rem, calc(1.875rem * var(--fluid-scale)));
 }
 
 @utility text-hero-desc {
-  /* 15px → 18px */
-  font-size: clamp(0.9375rem, 0.47vw + 0.74rem, 1.125rem);
+  /* 15px → 18px, then → 23.4px at 2560 */
+  font-size: clamp(0.9375rem, 0.47vw + 0.74rem, calc(1.125rem * var(--fluid-scale)));
 }
 
 @utility text-body {
-  /* 15px → 18px — body copy & descriptors */
-  font-size: clamp(0.9375rem, 0.4vw + 0.8rem, 1.125rem);
+  /* 15px → 18px, then → 23.4px at 2560 — body copy & descriptors */
+  font-size: clamp(0.9375rem, 0.4vw + 0.8rem, calc(1.125rem * var(--fluid-scale)));
 }
 
 @utility text-about-blurb {
-  /* 17.4px → 18.6px fluid (18px base) — apprenticeship/availability blurbs beside About photos */
-  font-size: clamp(1.0875rem, 0.09vw + 1.065rem, 1.1625rem);
+  /* 17.4px → 18.6px fluid (18px base), then → 24.2px at 2560 — apprenticeship/availability blurbs beside About photos */
+  font-size: clamp(1.0875rem, 0.09vw + 1.065rem, calc(1.1625rem * var(--fluid-scale)));
 }
 
 @utility text-caption {
-  /* 11px → 13px — labels, tags, small UI */
-  font-size: clamp(0.6875rem, 0.2vw + 0.62rem, 0.8125rem);
+  /* 11px → 13px, then → 16.9px at 2560 — labels, tags, small UI */
+  font-size: clamp(0.6875rem, 0.2vw + 0.62rem, calc(0.8125rem * var(--fluid-scale)));
 }
 
 @utility text-about-quote {
-  /* 19.9px → 36.9px fluid — about section quote (+30%) */
-  font-size: clamp(1.242rem, 1.988vw + 0.71rem, 2.306rem);
+  /* 19.9px → 36.9px fluid (+30%), then → 48px at 2560 — about section quote */
+  font-size: clamp(1.242rem, 1.988vw + 0.71rem, calc(2.306rem * var(--fluid-scale)));
+}
+
+/* ── Row / chrome type ──────────────────────────────────────
+   These three replace raw px literals that had no fluid treatment at all and
+   were therefore pixel-identical from 768px to 2560px. They are flat
+   calc()s rather than clamps because their px values are already the intended
+   size at every width up to 1440 — there is no lower ramp to preserve. */
+
+@utility text-row-title {
+  /* 46px → 59.8px at 2560 — work/about index row headings at md+ */
+  font-size: calc(46px * var(--fluid-scale));
+}
+
+@utility text-row-meta {
+  /* 17px → 22.1px at 2560 — row columns, filter pills */
+  font-size: calc(17px * var(--fluid-scale));
+}
+
+@utility text-nav {
+  /* 19.36px → 25.2px at 2560. Pixel-matched to .landing-intro-wordmark p so
+     the intro's wordmark hands off to the nav at the same baseline — change
+     both or neither (see the comment on that rule). */
+  font-size: calc(19.36px * var(--fluid-scale));
 }
 
 /* ── Magnetic Hover ──────────────────────────────────── */
@@ -358,171 +477,132 @@ body.is-transitioning {
   }
 }
 
-/* ── Page Transition (browser View Transitions API, via next-view-transitions) ──
-   Navigations run through `document.startViewTransition`, so the snapshot is the
-   viewport-sized `root`. The outgoing view holds static underneath while the
-   incoming view is revealed from a rounded, center-clipped, slightly-zoomed
-   state that expands to full size. Because `root` is always the viewport, the
-   reveal is identical regardless of page height (home vs work). */
-::view-transition-group(root) {
-  mix-blend-mode: normal;
-}
+/* ── Menu image flash fade ────────────────────────────────────────────────
+   FloatingMenu's hover image swap. The crossfade is the transition: the
+   incoming image resolves to full opacity by 60% of the timeline, so it is
+   already legible while the highlight is still clearing — the two read as one
+   event rather than "white panel, then image".
 
-/* Outgoing view: hold in place beneath the reveal (no default fade). */
-::view-transition-old(root) {
-  animation: none;
-  z-index: 1;
-}
+   The flash lives on the photo, not over it: a brightness lift on the image
+   itself, plus a soft radial highlight (`menu-image-flash`, rendered on its own
+   element) blended with `screen` so it raises highlights instead of painting an
+   opaque sheet. Never give that veil a flat, high-opacity white — that blows
+   the panel out and is exactly what this replaced.
 
-/* Incoming view: reveal on top with the rounded center-clip + zoom. */
-::view-transition-new(root) {
-  z-index: 2;
-  animation: pr-page-reveal 0.9s cubic-bezier(0.87, 0, 0.13, 1) both;
-}
+   The image and the veil deliberately share one duration and one easing curve,
+   so the two layers land together and read as a single gesture. If you retune
+   one, retune the other to match — desyncing them is what made an earlier pass
+   feel like two overlapping events instead of one transition.
 
-@keyframes pr-page-reveal {
-  from {
-    clip-path: inset(34% 40% 34% 40% round 2vw);
-    transform: scale(1.12);
+   The container is `overflow-hidden`, so the scale overshoot needs no clip-path.
+
+   Do not delete this keyframe, and do not let it resolve to `animation: none`
+   in any media query. FloatingMenu keys `onAnimationEnd` off it to drain its
+   image queue, so with no animation the `animationend` never fires and stale
+   images accumulate in the DOM. The veil has no such contract. */
+@keyframes menu-image-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(1.018);
+    filter: brightness(1.18);
   }
 
-  to {
-    clip-path: inset(0 0 0 0 round 0);
+  60% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
     transform: scale(1);
+    filter: brightness(1);
   }
 }
 
 .animate-menu-image-reveal {
-  animation: pr-page-reveal 0.9s cubic-bezier(0.87, 0, 0.13, 1) both;
+  animation: menu-image-reveal 0.78s cubic-bezier(0.4, 0, 0.2, 1) both;
   z-index: 2;
 }
 
-/* Mobile override: fade + scale instead of the clip reveal.
-
-   The desktop keyframe above was tuned against a desktop viewport and does not
-   survive the trip down. Two independent problems, one perceptual and one
-   compositing:
-
-   1. `inset()` is percentage-based, so the start rect is 20% of viewport width
-      by 32% of viewport height. At 1440x900 that's 288x288 — the square the
-      motion was designed around. At 390x844 it's 78x270, a narrow vertical
-      sliver that then stretches 5x horizontally against 3.1x vertically. The
-      distortion is visible in the snapshot as it opens.
-
-   2. `cubic-bezier(0.87, 0, 0.13, 1)` is an extreme ease-in-out: it moves
-      almost not at all for the first ~300ms of its 900ms. On a phone, where
-      the whole navigation should feel quicker than on desktop, that dead hold
-      reads as a frozen rectangle rather than as anticipation — the reported
-      "shows a square, then expands wholly". This is perceptual, not a dropped
-      frame; it happens at a locked 60fps.
-
-   So mobile gets its own motion rather than a scaled-down copy. `opacity` and
-   `transform` only — no `clip-path`, which also drops the per-frame raster of
-   an interpolating `round` radius over a full-viewport layer, the one cost
-   here that a mid-range phone actually can't absorb. Ease-out so motion starts
-   on the first frame, and short enough that it never becomes a wait.
-
-   Kept at 767px to match the breakpoint FloatingMenu and .landing-intro-row
-   already use — do not introduce a third value. */
-@media (max-width: 767px) {
-
-  /* The base rule holds the old view static under the clip reveal; with no clip
-     to reveal *through*, it has to dissolve instead or it would simply be cut
-     off when the new view lands. Shorter than the incoming animation so the
-     composite is never two half-opaque layers for long. */
-  ::view-transition-old(root) {
-    animation: pr-page-fade-out 260ms linear both;
-    z-index: 1;
-  }
-
-  ::view-transition-new(root) {
-    animation: pr-page-reveal-mobile 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    z-index: 2;
-  }
-}
-
-@keyframes pr-page-reveal-mobile {
+@keyframes menu-image-fade {
   from {
     opacity: 0;
-    transform: scale(1.04);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
-@keyframes pr-page-fade-out {
-  from {
-    opacity: 1;
+@keyframes menu-image-flash {
+  0% {
+    opacity: 0;
   }
 
-  to {
+  22% {
+    opacity: 0.13;
+  }
+
+  100% {
     opacity: 0;
   }
 }
 
-/* ── Case-study advance (scrolling from one project into the next) ──
-   NextProject puts `cs-flatten` on <html> just before pushing, once the reader
-   has scrolled through the foot-of-page sneak peek. The site's usual clip-path
-   zoom is wrong here: scroll position already carries the reader to the
-   destination's top, so a center-clip reveal would be a second, unrelated
-   motion on top of a gesture that already reads as arrival.
+/* `screen` lifts the image's highlights instead of covering them, and the
+   gradient is fully transparent by 78%, so the panel edges never blow out.
+   The ellipse is proportioned to the tall, narrow panel: a circle sized to it
+   bulges vertically and leaves a visible round hotspot.
 
-   But a hard cut is wrong too, which is what this used to be. By design the
-   outgoing stage *mirrors* a case study's own top — same gutter, same heading
-   scale, same Service block, already blended to the destination's palette — so
-   the two frames are nearly identical. Swapping them instantly doesn't read as
-   continuous; it reads as a snap on exactly the parts that don't line up (the
-   cover jumping to full size, text reflowing a hair) with nothing to mask it.
-
-   A crossfade is the one transition that resolves almost-matching frames into
-   each other. Short and linear: long enough to absorb the mismatch, short
-   enough that it never becomes a "transition" the reader has to wait through.
-
-   Both halves need an explicit animation. The base rule above sets
-   `animation: none` on the old view (the zoom reveal wants it held static), so
-   without re-animating it here the outgoing frame would sit fully opaque under
-   the incoming one and there would be nothing to fade.
-
-   Keyed to `cs-flatten`, NOT the `cs-cover` scroll lock: the two used to share
-   one class, and because the route change releases the lock *while this
-   animation is still playing* — and these pseudo-element rules match against
-   the live classList throughout, not just at snapshot time — the override was
-   being dropped a frame in and the zoom played in full. See caseStudyAdvance.ts. */
-html.cs-flatten::view-transition-old(root) {
-  z-index: 2;
-  animation: pr-cs-fade-out 320ms linear both;
-}
-
-html.cs-flatten::view-transition-new(root) {
-  z-index: 1;
-  animation: none;
-}
-
-/* Cross-fading *down* from the old view rather than up from the new one: the
-   two frames are near-identical, so fading the new one in from 0 would dip the
-   composite through a visibly darker/lighter middle where neither is solid.
-   Holding the new view opaque underneath and dissolving the old one over it
-   keeps the composite at full strength the whole way. */
-@keyframes pr-cs-fade-out {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
-  }
+   Duration and curve are deliberately identical to `menu-image-reveal` — see
+   the note in that block. */
+.animate-menu-image-flash {
+  animation: menu-image-flash 0.78s cubic-bezier(0.4, 0, 0.2, 1) both;
+  background: radial-gradient(
+    ellipse 75% 60% at 50% 45%,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0) 78%
+  );
+  mix-blend-mode: screen;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Opacity-only, and still a real animation: the image queue drains off
+     `animationend`, so this must never become `animation: none`. */
+  .animate-menu-image-reveal {
+    animation: menu-image-fade 0.28s linear both;
+  }
 
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
+  .animate-menu-image-flash {
+    animation: none;
+  }
+}
+
+/* ── LiquidImage `responsive-hero` object-position ────────────────────────
+   The focal anchor for LiquidImage's fallback <img> under `fit="responsive-hero"`
+   (the hero portrait). It lives in CSS because the fork has to be right in the
+   FIRST painted frame: deriving it from `useIsDesktop()` gave one commit at that
+   hook's by-construction `false`, which painted the desktop hero with the mobile
+   cover-crop on every soft navigation to `/`.
+
+   ── THREE COPIES OF ONE RULE — change together ───────────────────────────
+   The `1024px` here mirrors `DESKTOP_QUERY` (src/lib/useMediaQuery.ts), which
+   `resolveFit()` in LiquidImage.tsx reads for the WebGL path and
+   `isPortraitCovering()` (src/lib/heroPortrait.ts) reads for the intro handoff.
+   The `27%` is `PORTRAIT_FOCUS.x` (src/lib/heroPortrait.ts) — a solved value,
+   not an eyeballed one; see that constant's comment before changing it.
+
+   Only the x forks. The y is the bottom anchor on both sides, which is what
+   stands the figure on the section's floor. */
+:root {
+  /* Mobile: cover, cropped around the face. */
+  --liquid-object-position: 27% 100%;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    /* Desktop: contain. The art letterboxes, so there is no crop to steer and
+       an off-centre anchor would only slide it sideways in its box. */
+    --liquid-object-position: 50% 100%;
   }
 }
 
@@ -681,8 +761,13 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
    plus four ~213px gaps = ~1354px, leaving ~3vw of margin each side. The gap is
    solved from the panel width — (100vw − 6vw margin − 5×panel) ÷ 4 — so the
    spread stays edge-to-edge across viewports while `justify-content: center`
-   keeps doing the two jobs above. Change the panel width and this gap has to be
-   re-solved or the row stops meeting the margins.
+   keeps doing the two jobs above.
+
+   That formula is now written directly into `gap` below rather than being
+   pre-solved into a vw constant, so it holds at every width and the panel
+   width can change without this needing a manual re-solve. The one thing to
+   keep in step is the `clamp()` duplicated in the gap expression: it must
+   match `.landing-intro-panel`'s `width` exactly.
 
    The gap is also the beat-3 gather's start value — but the target is no longer
    a literal that has to be retuned alongside it. Beat 3 reads this resolved gap
@@ -702,7 +787,14 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14.79vw;
+  /* The invariant stated above, written as arithmetic instead of a magic vw.
+     14.79vw was the value that satisfied it AT 1440px, but it kept growing
+     after the panel width clamped at 1621px, so past that the row overshot and
+     the margins ballooned (240px per side at 2560 instead of 3vw). Deriving
+     the gap from the panel makes it correct at every width and impossible to
+     drift again — change the panel and this re-solves itself.
+     Identical to 14.79vw for all widths <= 1621px. */
+  gap: calc((100vw - 6vw - 5 * clamp(37px, 6.97vw, 113px)) / 4);
 }
 
 .landing-intro-panel {
@@ -850,7 +942,7 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
 .landing-intro-wordmark {
   position: absolute;
   left: 24px;
-  top: 32.8px;
+  top: calc(32.8px * var(--fluid-scale));
   z-index: 5;
   overflow: hidden;
   opacity: 0;
@@ -859,13 +951,16 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
 @media (min-width: 768px) {
   .landing-intro-wordmark {
     left: 40px;
-    top: 43.6px;
+    top: calc(43.6px * var(--fluid-scale));
   }
 }
 
 .landing-intro-wordmark p {
   margin: 0;
-  font-size: 19.36px;
+  /* Pixel-matched to TopNav's text-nav utility — the two must scale together
+     or the intro's wordmark stops landing on the nav's baseline at the
+     handoff. Change both or neither. */
+  font-size: calc(19.36px * var(--fluid-scale));
   font-weight: 363;
   letter-spacing: -0.01em;
   /* No explicit line-height: TopNav sets none either, so leaving both at the
@@ -1104,7 +1199,7 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   pointer-events: none;
 }
 .glass-button-text {
-  font-size: 19px;
+  font-size: calc(19px * var(--fluid-scale));
   font-family: system-ui, sans-serif;
   color: #3e3e3e;
   letter-spacing: -0.01em;
@@ -1114,8 +1209,8 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   white-space: nowrap;
 }
 .glass-button-icon {
-  width: 38px;
-  height: 38px;
+  width: calc(38px * var(--fluid-scale));
+  height: calc(38px * var(--fluid-scale));
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1131,15 +1226,19 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
   flex-shrink: 0;
 }
 .glass-button-svg {
-  width: 14px;
+  width: calc(14px * var(--fluid-scale));
   fill: #ffffff;
   filter: drop-shadow(0 25px 3px rgba(102,102,102,0.2));
 }
 
-.glass-button--default { --w: 224px; --h: 76px; }
-.glass-button--sm      { --w: 176px; --h: 60px; }
-.glass-button--lg      { --w: 272px; --h: 88px; }
-.glass-button--icon    { --w: 76px;  --h: 76px; padding: 0; gap: 0; }
+/* Geometry is centralised here, so multiplying --w/--h carries the pill, its
+   inner overlay (which derives from them via calc) and the hover states along
+   with it. The 1px border and the overlay's 9px inset stay absolute on
+   purpose — hairlines should read as hairlines at any width. */
+.glass-button--default { --w: calc(224px * var(--fluid-scale)); --h: calc(76px * var(--fluid-scale)); }
+.glass-button--sm      { --w: calc(176px * var(--fluid-scale)); --h: calc(60px * var(--fluid-scale)); }
+.glass-button--lg      { --w: calc(272px * var(--fluid-scale)); --h: calc(88px * var(--fluid-scale)); }
+.glass-button--icon    { --w: calc(76px * var(--fluid-scale));  --h: calc(76px * var(--fluid-scale)); padding: 0; gap: 0; }
 
 /* ── BloomFieldGradient blob radius ────────────────────────
    The contact page's mesh-gradient blobs take their radius from this property,
@@ -1286,5 +1385,300 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
     opacity: 0.13;
     filter: blur(10px);
     transform: none;
+  }
+}
+
+/* ── Coming Soon Note ───────────────────────────────────────────────────
+   An admission ticket slapped on an in-progress work card. Markup in
+   components/work/ComingSoonNote.tsx.
+
+   The whole effect rests on paper GRAIN, not on fold geometry. Earlier passes
+   chased a turned-back corner and it never convinced — a shaded triangle reads
+   as a patch, and clipping the corner for real silently costs the element its
+   box-shadow. The sheet here is plain and square; what makes it read as paper
+   is the fibre across its surface, a flat fill, and a close shadow.
+
+   Sized in percentages of the card so one rule covers the 1/2/3-column grid
+   and the smaller card on the home page. */
+
+/* A card whose project isn't openable yet reads the way disabled UI does:
+   drained of colour and faded back, so the eye skips it when scanning for
+   something to click. ProjectRow already withholds the link and the pointer
+   cursor — this is the visual half of that same statement.
+
+   Applied to the card's parts rather than the whole card, because the note
+   has to be exempt: it is the thing explaining why the card is inert, so it
+   stays at full strength while the work behind it greys out. */
+.work-card-dim {
+  filter: grayscale(0.7);
+  opacity: 0.55;
+  /* Matches the hover transitions on the live cards, so a filtered list
+     settling into place doesn't snap between states. */
+  transition:
+    filter 0.3s ease-out,
+    opacity 0.3s ease-out;
+}
+
+.cs-note-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  /* The note's type sizes in `cqw` off this box — the card — so the ticket
+     holds one set of proportions at every card size. An element cannot query
+     itself, so the container has to be the layer rather than .cs-note.
+     inline-size, not size: `size` makes the layer establish both axes and the
+     note's aspect-ratio collapses under it. */
+  container-type: inline-size;
+}
+
+.cs-note {
+  position: relative;
+  /* Large enough to dominate the frame the way the reference ticket does.
+     It cannot actually overhang the photo: the card box is `overflow-hidden`
+     for its corner radius and to contain the hover zoom, so anything past the
+     edge would be clipped. At this width it reads as covering the work.
+
+     Sized off the card's HEIGHT, not its width. The card is landscape
+     (400/360 with a wide inner window), so a percentage width would stretch
+     the note into an envelope; against the height it stays the upright ticket
+     the reference is. */
+  /* Width-driven, with the aspect ratio giving the height. The reference is
+     near-square; much past this and the stub starts reading as a flyer.
+     min-height rather than height so a long title lengthens the paper instead
+     of spilling off it. */
+  width: 62%;
+  min-height: 0;
+  aspect-ratio: 1 / 1.04;
+  /* The blocks stack down the stub, spaced apart rather than packed — the
+     reference gives each one room. A note missing its header or date simply
+     redistributes the space instead of leaving a reserved gap. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8% 7% 7%;
+  /* One font-size for the whole ticket; every block below sizes in `em` off
+     this, so the note scales as a single object across the 1/2/3-column grid
+     and the smaller mobile card.
+
+     Measured against the NOTE, not the viewport: `cqw` here is a percentage of
+     the note's own width (it is its own container, below), so the type holds
+     the same proportions the reference does at every card size. A vw-based
+     clamp cannot — it drifts against the paper as the grid reflows, which is
+     what left the type undersized on a wide card. The clamp only floors it so
+     a very narrow mobile card stays legible. */
+  font-size: max(6px, 3.9cqw);
+  /* A photographed sheet rather than a generated one: grain, speckle and the
+     soft creases of real pulp stock, which several passes at a noise shader
+     never convincingly reached. `cover` because the file is square and the
+     note rarely is — the texture is even and has no subject, so cropping it
+     is invisible where stretching would visibly smear the speckle.
+     The flat colour stays underneath as what shows while the file loads, or
+     if it 404s. NOTE: the filename contains a space; it must stay encoded. */
+  background-color: var(--color-note);
+  background-image: url("/images/sticky%20note.png");
+  background-size: cover;
+  background-position: center;
+  /* Square corners, deliberately. An earlier pass gave the sheet a hair of
+     asymmetric rounding so it wouldn't look machine-cut; at any real card size
+     that reads as a rounded card instead. A cut sheet of paper has corners.
+     The two child layers below inherit this, so there is nothing to unset. */
+  /* Held on a custom property so the hover lift composes with the tilt rather
+     than overwriting it. */
+  --cs-note-tilt: 2.5deg;
+  transform: rotate(var(--cs-note-tilt)) scale(var(--cs-note-scale, 1));
+  /* Soft and close — the sheet sits ON the card. A wide spread floats it.
+     Deliberately box-shadow rather than a filter on the layer: filter would
+     force every taped card onto its own compositing layer, and it was only
+     ever needed to work around a clip-path that no longer exists. */
+  box-shadow:
+    0 calc(1px * var(--fluid-scale)) calc(2px * var(--fluid-scale)) rgb(0 0 0 / 0.16),
+    0 calc(6px * var(--fluid-scale)) calc(10px * var(--fluid-scale)) rgb(0 0 0 / 0.14);
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+/* Every block sits above the paper. Warm off-black throughout: ink on yellow
+   paper, never pure black. */
+.cs-note-header,
+.cs-note-main,
+.cs-note-title,
+.cs-note-date,
+.cs-note-hours {
+  position: relative;
+  z-index: 2;
+  color: #23201a;
+  /* The strip is one LEFT-aligned block that is itself centred on the note:
+     the two rows share a left edge so their digits stack, which centring each
+     row independently would break. */
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  width: fit-content;
+  margin-inline: auto;
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 0.66em;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* The printed lines at the top of the ticket: small, tracked-out caps. */
+.cs-note-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-family: var(--font-sans);
+  font-size: 0.72em;
+  font-weight: 500;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  text-wrap: balance;
+}
+
+/* Title and date as one block, so `space-between` on the note distributes the
+   slack around the pair rather than driving a wedge through it. */
+.cs-note-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.55em;
+  /* Takes the slack so a note carrying only a title still centres its one
+     line instead of being shoved to the top by space-between. */
+  flex: 1;
+  /* A flex child will not shrink below its content by default, which is how a
+     three-word title pushes past the paper. */
+  min-height: 0;
+}
+
+/* The one handwritten line. Caveat rather than the marker face the date uses
+   — a lighter script hand for the title. Left in sentence case on purpose:
+   an all-caps title in a script face reads as noise. Always a single line —
+   the note reads as a stamped ticket, not a paragraph — so long titles shrink
+   via --cs-title-scale instead of wrapping. */
+.cs-note-title {
+  font-family: var(--font-caveat);
+  font-weight: 600;
+  /* Shrinks as the title lengthens so a long name still fits on one line:
+     set per total character count by the component via --cs-title-scale.
+     Caveat runs lighter than the marker face it replaced, so the base size
+     is bumped up to match its weight. */
+  font-size: calc(3.6em * var(--cs-title-scale, 1));
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* The stamped date. Wine is already the site's red token, and it lands close
+   to the reference's ink. */
+.cs-note-date {
+  font-family: var(--font-marker);
+  font-size: 0.95em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-wine);
+}
+
+/* The clock strip: two rows of 1–12, AM leading the first and PM trailing the
+   second, exactly as a punch ticket prints them. */
+.cs-note-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  font-family: var(--font-sans);
+  font-size: 0.58em;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.cs-note-hour-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  /* Open enough to match the reference, and to keep a ringed digit clear of
+     its neighbours. */
+  gap: 0.62em;
+}
+
+/* The PM row carries no leading label, so it reserves the AM label's slot to
+   put its "1" directly under the AM row's "1". Same width as .cs-note-meridiem
+   plus one row gap. */
+.cs-note-hour-row:last-child {
+  padding-inline-start: calc(1.6em + 0.62em);
+}
+
+.cs-note-meridiem {
+  letter-spacing: 0.08em;
+}
+
+/* Only the LEADING label (AM, first child of its row) is a fixed slot — that
+   width is what the PM row's indent above matches. The trailing PM label sits
+   after the digits and must stay its natural width, or it drifts right. */
+.cs-note-hour-row > .cs-note-meridiem:first-child {
+  min-width: 1.6em;
+  text-align: left;
+}
+
+.cs-note-hour {
+  position: relative;
+  /* A fixed box so 1 and 12 occupy the same slot and the two rows line up. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.85em;
+}
+
+/* The ring. An ellipse wider than it is tall, nudged off-centre and rotated a
+   touch, so it reads as drawn round the number by hand rather than printed
+   with it. */
+.cs-note-hour[data-circled]::after {
+  content: "";
+  position: absolute;
+  inset: -0.42em -0.3em -0.38em -0.34em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  transform: rotate(-7deg);
+  pointer-events: none;
+}
+
+/* Each word gets its own slight rotation so the line wobbles the way a hand
+   does. Nth-child rather than random: it must be stable between server and
+   client renders, and identical notes shouldn't jitter differently. */
+.cs-note-word {
+  display: inline-block;
+  transform: rotate(var(--cs-word-tilt, 0deg));
+}
+
+.cs-note-word:nth-child(3n) {
+  --cs-word-tilt: -1.6deg;
+}
+
+.cs-note-word:nth-child(3n + 1) {
+  --cs-word-tilt: 1.2deg;
+}
+
+/* Nothing animates at rest: an idle work grid should paint nothing at all.
+   Scoped to the card's `group` class, which both the work grid and the home
+   rows already put on the row wrapper. */
+.group:hover .cs-note {
+  --cs-note-scale: 1.035;
+  box-shadow:
+    0 calc(2px * var(--fluid-scale)) calc(3px * var(--fluid-scale)) rgb(0 0 0 / 0.18),
+    0 calc(11px * var(--fluid-scale)) calc(16px * var(--fluid-scale)) rgb(0 0 0 / 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The note still renders in full — it carries meaning. Only the motion goes. */
+  .cs-note {
+    transition: none;
+  }
+
+  .group:hover .cs-note {
+    --cs-note-scale: 1;
   }
 }

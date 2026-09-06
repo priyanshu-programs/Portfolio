@@ -5,7 +5,7 @@ import { useState } from "react";
 /**
  * One numbered row of the contact form: index, question, bare underlined input.
  *
- * Extracted rather than inlined five times because the accessible wiring —
+ * Extracted rather than inlined per field because the accessible wiring —
  * matching `id`/`htmlFor`, and `aria-describedby` pointing at an error node that
  * only sometimes exists — is exactly the kind of thing that silently drifts out
  * of sync when it's copy-pasted.
@@ -60,7 +60,7 @@ export default function NumberedField({
     "placeholder:text-muted transition-colors duration-300",
   ].join(" ");
 
-  const fieldStyle = { fontSize: "clamp(1.1rem, 1.8vw, 1.5rem)" };
+  const fieldStyle = { fontSize: "clamp(1.1rem, 1.8vw, calc(1.5rem * var(--fluid-scale)))" };
 
   const shared = {
     id: name,
@@ -97,6 +97,16 @@ export default function NumberedField({
             style={{ fontWeight: 400, letterSpacing: "-0.02em" }}
           >
             {label}
+            {/*
+              Decorative: the input already carries `required`, which is what
+              assistive tech announces. A literal asterisk in the accessible
+              name would be read out as "star" on top of that.
+            */}
+            {required ? (
+              <span aria-hidden="true" className="ml-1 text-muted">
+                *
+              </span>
+            ) : null}
           </label>
 
           <div className="relative">

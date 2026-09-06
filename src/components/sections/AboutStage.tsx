@@ -72,7 +72,7 @@ const BLURB_POSITIONS = [
 ] as const;
 
 const BLURB_STYLE: React.CSSProperties = {
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font-manrope-stack)",
   lineHeight: 1.25,
   fontWeight: 400,
   textAlign: "justify",
@@ -437,7 +437,7 @@ export default function AboutStage() {
       ref={containerRef}
       className="no-overflow relative w-full bg-cream"
     >
-      <div className="relative mx-auto w-full max-w-[1700px] px-6 py-[clamp(5rem,12vh,8rem)] md:px-[40px] lg:flex lg:gap-12 lg:py-0">
+      <div className="relative mx-auto w-full max-w-[calc(1700px*var(--fluid-scale))] px-6 py-[clamp(5rem,12vh,8rem)] md:px-[40px] lg:flex lg:gap-12 lg:py-0">
         {/* ── Left column: heading, copy, socials/email ──────────────────
             Sticky on desktop so it holds its position in the viewport while
             the taller right column of photos scrolls past it. Mobile stays
@@ -447,7 +447,7 @@ export default function AboutStage() {
             <h1
               className="font-medium leading-[0.9] tracking-[-0.04em] text-ink"
               style={{
-                fontSize: "clamp(3.9rem, 11.7vw, 11.62rem)",
+                fontSize: "clamp(3.9rem, 11.7vw, calc(11.62rem * var(--fluid-scale)))",
                 marginTop: "clamp(2.5rem, 6vw, 6rem)",
                 marginLeft: "clamp(1.5rem, 6.2vw, 6.19rem)",
               }}
@@ -472,7 +472,7 @@ export default function AboutStage() {
                     key={i}
                     className="about-para max-w-[38ch] text-ink will-change-transform"
                     style={{
-                      fontSize: "clamp(1rem, 1.15vw, 1.2rem)",
+                      fontSize: "clamp(1rem, 1.15vw, calc(1.2rem * var(--fluid-scale)))",
                       lineHeight: 1.5,
                       textAlign: "justify",
                     }}
@@ -502,7 +502,7 @@ export default function AboutStage() {
                 target="_blank"
                 rel="noreferrer"
                 className="inline-block w-fit font-medium text-ink transition-opacity duration-300 hover:opacity-60"
-                style={{ fontSize: "clamp(1.1rem, 1.7vw, 1.6rem)" }}
+                style={{ fontSize: "clamp(1.1rem, 1.7vw, calc(1.6rem * var(--fluid-scale)))" }}
               >
                 <span className="inline-block overflow-hidden align-bottom">
                   <span className="about-meta-inner inline-block will-change-transform">
@@ -514,7 +514,7 @@ export default function AboutStage() {
             <a
               href={`mailto:${email}`}
               className="mt-5 inline-block w-fit text-ink underline-offset-4 transition-opacity duration-300 hover:opacity-60 hover:underline"
-              style={{ fontSize: "clamp(1rem, 1.35vw, 1.35rem)" }}
+              style={{ fontSize: "clamp(1rem, 1.35vw, calc(1.35rem * var(--fluid-scale)))" }}
             >
               <span className="inline-block overflow-hidden align-bottom pb-[2px]">
                 <span className="about-meta-inner inline-block will-change-transform">

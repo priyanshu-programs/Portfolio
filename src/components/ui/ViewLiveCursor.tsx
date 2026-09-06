@@ -31,6 +31,7 @@ export default function ViewLiveCursor({
 
     let isHovered = false;
     let isActive = true;
+    let hasPointer = false;
     let lastX = 0;
     let lastY = 0;
 
@@ -60,13 +61,14 @@ export default function ViewLiveCursor({
 
     const handleMove = (e: PointerEvent) => {
       if (!isActive) return;
+      hasPointer = true;
       lastX = e.clientX;
       lastY = e.clientY;
       updateCursor(lastX, lastY);
     };
 
     const handleScroll = () => {
-      if (!isActive) return;
+      if (!isActive || !hasPointer) return;
       // When the page scrolls, the image moves but the mouse stays in the same screen coordinate.
       // We re-evaluate if the mouse is still inside the bounding rect of the image.
       updateCursor(lastX, lastY);
@@ -80,6 +82,7 @@ export default function ViewLiveCursor({
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("scroll", handleScroll);
       gsap.killTweensOf(node);
+      gsap.set(node, { scale: 0, opacity: 0 });
     };
   }, [containerRef, mounted]);
 
@@ -92,7 +95,12 @@ export default function ViewLiveCursor({
     <div
       ref={cursorRef}
       className="pointer-events-none fixed left-0 top-0 z-[9999] flex items-center justify-center w-[112px] h-[112px] rounded-full mix-blend-difference text-white"
-      style={{ fontFamily: "var(--font-sans)", fontWeight: 300 }}
+      style={{
+        fontFamily: "var(--font-sans)",
+        fontWeight: 300,
+        opacity: 0,
+        transform: "translate(-50%, -50%) scale(0)",
+      }}
     >
       {/* The SVG Text Layer */}
       <div className="absolute inset-0 flex items-center justify-center z-20">

@@ -45,20 +45,31 @@ export const siteContentQuery = /* groq */ `{
     _id, id, title, "slug": slug.current, category, services, year,
     tags[]->{ _id, title, "slug": slug.current },
     thumbnail, bgColor,
-    hoverImage, "hoverBg": hoverBg.hex
+    hoverImage, "hoverBg": hoverBg.hex,
+    comingSoon, comingSoonLabel,
+    noteHeader, noteTitle, noteDate, noteHours, noteMeridiem
   },
   "homeWork": *[_type == "workProject" && pinnedHome == true && visible != false] | order(order asc, id asc)[0...4]{
     _id, id, title, "slug": slug.current, category, services, year, thumbnail, bgColor,
-    hoverImage, "hoverBg": hoverBg.hex
+    hoverImage, "hoverBg": hoverBg.hex,
+    comingSoon, comingSoonLabel,
+    noteHeader, noteTitle, noteDate, noteHours, noteMeridiem
   },
   "tags": *[_type == "tag"] | order(order asc){
     _id, title, "slug": slug.current
   }
 }`;
 
-/** Every publishable case-study slug, for generateStaticParams. */
+/**
+ * Every publishable case-study slug, for generateStaticParams. A coming-soon
+ * project has no readable page, so it must not be prebuilt.
+ *
+ * `!= true` rather than `!comingSoon` throughout: documents written before the
+ * field existed have it undefined, which has to read as *not* coming soon —
+ * the same reasoning as `visible != false`.
+ */
 export const workSlugsQuery = /* groq */ `
-  *[_type == "workProject" && defined(slug.current) && visible != false].slug.current
+  *[_type == "workProject" && defined(slug.current) && visible != false && comingSoon != true].slug.current
 `;
 
 /**
@@ -68,7 +79,7 @@ export const workSlugsQuery = /* groq */ `
  * clearer than expressing the wrap in GROQ.
  */
 export const caseStudyBySlugQuery = /* groq */ `{
-  "project": *[_type == "workProject" && slug.current == $slug && visible != false][0]{
+  "project": *[_type == "workProject" && slug.current == $slug && visible != false && comingSoon != true][0]{
     title, "slug": slug.current, category, services, year,
     // Sanity stamps these on every document, so they need no schema field and
     // cannot drift from reality the way a hand-entered date would. They feed
@@ -82,7 +93,7 @@ export const caseStudyBySlugQuery = /* groq */ `{
     gallery[]{ image, caption },
     pageBg, accent, textColor, navColor, galleryBg
   },
-  "ordered": *[_type == "workProject" && defined(slug.current) && visible != false]
+  "ordered": *[_type == "workProject" && defined(slug.current) && visible != false && comingSoon != true]
     | order(order asc, id asc){
       title, "slug": slug.current, category, services, year, thumbnail, cover, bgColor,
       pageBg, accent, textColor, navColor

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/components/transition/SmartLink";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useSiteContent } from "@/components/ContentProvider";
@@ -14,7 +14,7 @@ const DEFAULT_ORNAMENT = "/images/ornament-1.jpg";
 
 const SERVICE_CARDS = [
   {
-    title: "Brand\nDesign",
+    title: "Web\nDesign",
     copy: "Identity that earns recognition before a single word is spoken.",
     bg: "#FFFCFA",
     text: "#13284b",
@@ -212,11 +212,14 @@ export default function Services() {
           scrollTrigger: {
             trigger: stage,
             start: "top top",
-            end: "+=240%",
+            end: "+=120%",
             pin: true,
             /* Default `pinSpacing` deliberately. It was briefly set to false
                while chasing a removeChild crash blamed on the spacer's
-               re-parenting; that theory was wrong, and losing the spacer's
+               re-parenting; that theory was wrong HERE - this pin targets an
+               inner div React never removes on its own. It is exactly right
+               for a pinned component ROOT under a conditional mount; see the
+               wrapper note in CtaCollage. Losing the spacer's
                contributed height shortened the page enough that this pin
                released early and the following section rode up over the cards
                mid-timeline. The spacer is what buys the +=240% its runway. */
@@ -363,7 +366,7 @@ export default function Services() {
       <div className="py-16 lg:hidden" aria-hidden>
         <div
           className="mx-auto max-w-[800px] text-center font-light leading-[1.3] text-[#1D222E] drop-shadow-none text-[31px] sm:text-[42px] whitespace-pre-wrap"
-          style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
+          style={{ fontFamily: "var(--font-manrope-stack)", fontWeight: 300 }}
         >
           {headingOverride ?? (
             <>
@@ -405,7 +408,7 @@ export default function Services() {
                     mobile tree. The desktop copy carries the real heading. */}
                 <div
                   className="whitespace-pre-line text-[29px] leading-[0.98]"
-                  style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
+                  style={{ fontFamily: "var(--font-manrope-stack)", fontWeight: 400 }}
                 >
                   {card.title}
                 </div>
@@ -413,7 +416,7 @@ export default function Services() {
                   className="mt-3 text-[17px] leading-[1.45] opacity-90"
                   style={{
                     color: card.muted,
-                    fontFamily: "var(--font-helv)",
+                    fontFamily: "var(--font-manrope-stack)",
                     fontWeight: 300,
                   }}
                 >
@@ -429,8 +432,8 @@ export default function Services() {
         <div className="flex h-[100dvh] min-h-[680px] flex-col items-center justify-center [perspective:1500px]">
           <h2
             ref={headingRef}
-            className="mb-[7vh] text-left text-[clamp(28px,2.55vw,48px)] font-light leading-[1.3] text-[#1D222E] drop-shadow-none whitespace-pre-wrap max-w-[1000px]"
-            style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
+            className="mb-[7vh] text-left text-[clamp(28px,2.55vw,calc(48px*var(--fluid-scale)))] font-light leading-[1.3] text-[#1D222E] drop-shadow-none whitespace-pre-wrap max-w-[calc(1000px*var(--fluid-scale))]"
+            style={{ fontFamily: "var(--font-manrope-stack)", fontWeight: 300 }}
           >
             {headingOverride ?? (
               <>
@@ -445,16 +448,23 @@ export default function Services() {
             )}
           </h2>
 
-          <div
-            ref={deckRef}
-            className="flex items-stretch justify-center [transform-style:preserve-3d] will-change-transform"
-            style={{ gap: 0, width: "46vw" }}
-          >
+          {/* One hit target for the whole deck rather than three per-card
+              links. Each card is painted rotated (rotateZ ±7.8, rotateY ±13)
+              and translated, but a link is hit-tested as its un-rotated
+              rectangle — so the middle card's box, sitting on top at zIndex 3,
+              swallowed the tilted corners of both neighbours and left dead
+              zones across the visible faces. All three cards pointed at
+              /contact anyway, so a single target removes the overlap problem
+              instead of fighting the rotation geometry. */}
+          <div className="relative">
+            <div
+              ref={deckRef}
+              className="flex items-stretch justify-center [transform-style:preserve-3d] will-change-transform"
+              style={{ gap: 0, width: "46vw" }}
+            >
             {cards.map((card, index) => (
-              <Link
+              <div
                 key={card.title}
-                href="/contact"
-                aria-label={`${card.title.replace(/\n/g, " ")} — get in touch`}
                 ref={(el) => {
                   cardRefs.current[index] = el;
                 }}
@@ -476,7 +486,17 @@ export default function Services() {
                     flipWrapperRefs.current[index] = el;
                   }}
                   className="absolute inset-0 shadow-[0_28px_80px_rgba(0,0,0,0.36)] [transform-style:preserve-3d] will-change-transform"
-                  style={{ borderRadius: "inherit", backgroundColor: card.bg }}
+                  /* Faces stay out of hit-testing: they sit inside a
+                     rotateY(-180) subtree under the card's perspective, so the
+                     browser resolves them against the accumulated 3D matrix and
+                     their responsive region lands mirrored against what's
+                     painted. Nothing here should compete with the deck-wide
+                     link below. */
+                  style={{
+                    borderRadius: "inherit",
+                    backgroundColor: card.bg,
+                    pointerEvents: "none",
+                  }}
                 >
                   <div
                     ref={(el) => {
@@ -493,6 +513,7 @@ export default function Services() {
                       borderRadius: "inherit",
                       transform: "translateZ(1px)",
                       WebkitBackfaceVisibility: "hidden",
+                      pointerEvents: "none",
                     }}
                   />
 
@@ -509,6 +530,7 @@ export default function Services() {
                       opacity: 1,
                       transform: "rotateY(180deg) translateZ(1px)",
                       WebkitBackfaceVisibility: "hidden",
+                      pointerEvents: "none",
                     }}
                   >
                     <div className="opacity-58">
@@ -516,16 +538,16 @@ export default function Services() {
                     </div>
                     <div>
                       <h3
-                        className="whitespace-pre-line text-[clamp(26px,1.8vw,36px)] leading-[0.98]"
-                        style={{ fontFamily: "var(--font-helv)", fontWeight: 300 }}
+                        className="whitespace-pre-line text-[clamp(26px,1.8vw,calc(36px*var(--fluid-scale)))] leading-[0.98]"
+                        style={{ fontFamily: "var(--font-manrope-stack)", fontWeight: 400 }}
                       >
                         {card.title}
                       </h3>
                       <p
-                        className="mt-[clamp(12px,1.2vw,20px)] max-w-[34ch] text-[clamp(15px,1.15vw,20px)] leading-[1.45] opacity-90"
+                        className="mt-[clamp(12px,1.2vw,20px)] max-w-[34ch] text-[clamp(15px,1.15vw,calc(20px*var(--fluid-scale)))] leading-[1.45] opacity-90"
                         style={{
                           color: card.muted,
-                          fontFamily: "var(--font-helv)",
+                          fontFamily: "var(--font-manrope-stack)",
                           fontWeight: 300,
                         }}
                       >
@@ -534,8 +556,20 @@ export default function Services() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
+            </div>
+
+            {/* The only interactive element. Negative inset reaches the outer
+                cards, which translate x by +/-2.15vw and y up to 2.1vw and so
+                sit outside the deck's own box; without it their outer corners
+                fall outside the hit area. Sits above the cards, whose faces are
+                all pointer-events:none, so nothing competes for the pointer. */}
+            <Link
+              href="/contact"
+              aria-label="Our services - get in touch"
+              className="absolute z-10 -left-[3vw] -right-[3vw] -top-[1vw] -bottom-[3vw]"
+            />
           </div>
         </div>
       </div>

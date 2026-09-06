@@ -1,26 +1,29 @@
 /**
  * Shared contract for the "scroll into the next case study" navigation.
  *
- * Three places need to agree on it: NextProject starts the advance, globals.css
- * keys the flattened view-transition off the class, and SmoothScroll settles a
- * still-running advance when the route change it caused arrives.
+ * Three places need to agree on it: NextProject starts the advance, CaseStudy
+ * reads the marker to skip its intro, and SmoothScroll settles a still-running
+ * advance when the route change it caused arrives.
  *
  * Two classes, not one, because the two jobs have different lifetimes:
  *
  * - `cs-cover` gates the *scroll lock*, and must be releasable by whoever
  *   handles the route change (see `settleCaseStudyAdvance`).
- * - `cs-flatten` suppresses the *view transition*, and must survive until the
- *   animation ends — which is strictly later than the route change.
+ * - `cs-flatten` marks *how the reader got here* — by the scroll gesture rather
+ *   than a click — and must outlive the route change so the arriving page can
+ *   still read it on mount.
  *
- * They used to be the same class, which silently broke the suppression:
- * `next-view-transitions` resolves the transition's promise from its own
- * `[pathname]` effect, so the pathname change lands while the 0.9s
- * pseudo-element animation is still running. SmoothScroll's `[pathname]` effect
- * called `settleCaseStudyAdvance()` and removed the class about a frame in, and
- * because view-transition pseudo-element rules are matched against the *live*
- * <html> classList for the whole animation — not just at snapshot time — the
- * zoom reveal played anyway. Releasing the lock must not un-suppress the
- * transition, hence the split.
+ * They used to be the same class, and the collapse was a real bug: SmoothScroll's
+ * `[pathname]` effect calls `settleCaseStudyAdvance()` and removes the class
+ * about a frame into the navigation, which is *before* the arriving CaseStudy
+ * mounts and probes it. Releasing the lock must not erase the marker, hence the
+ * split. Do not fold them back together.
+ *
+ * `cs-flatten` was originally named for flattening the site's page transition to
+ * a hard cut. That transition has since been removed and the class has no CSS
+ * consumers left, but the name is kept: it is the public contract shared with
+ * CaseStudy's probe, and the meaning it still carries — "this navigation came
+ * from the scroll gesture" — is what that consumer actually keys off.
  */
 
 /**
@@ -30,20 +33,13 @@
 export const COVER_CLASS = "cs-cover";
 
 /**
- * Set on <html> to swap the site's clip-path zoom reveal for a short crossfade
- * (see globals.css).
+ * Set on <html> to mark a navigation as having come from the foot-of-page
+ * scroll gesture rather than a click.
  *
- * Scroll position already carries the reader straight into the destination's
- * top by the time this fires, so the zoom would be a second, unrelated motion
- * layered on a gesture that already reads as arrival — but the outgoing stage
- * deliberately mirrors the incoming page's own top, and cutting between two
- * near-identical frames snaps rather than reads as continuous. The crossfade
- * absorbs the mismatch.
- *
- * Named "flatten" from when it did produce a hard cut. Kept because it is the
- * public contract shared with globals.css and CaseStudy's intro-skip probe, and
- * the meaning it still carries — "this navigation came from the scroll gesture,
- * not a click" — is what all three consumers actually key off.
+ * Its only consumer is CaseStudy's intro-skip probe: scroll position already
+ * carries the reader to the destination's top, so playing an entrance there
+ * would pop into an already-settled scroll. Read on mount, so it has to outlive
+ * the route change — which is why it is timed separately from the scroll lock.
  */
 export const FLATTEN_CLASS = "cs-flatten";
 
@@ -57,28 +53,27 @@ export const FLATTEN_CLASS = "cs-flatten";
 export const COVER_DURATION_MS = 900;
 
 /**
- * How long the flatten class stays on, measured from the push rather than from
- * the transition becoming ready.
+ * How long the marker stays on, measured from the push.
  *
- * Must outlast the navigation plus the `pr-cs-fade-out` crossfade it selects
- * (320ms in globals.css) — not just the crossfade, since the class goes on
- * *before* `router.push` and the route change itself can take a few hundred ms
- * on a cold-ish route. Kept generous for that reason: overshooting is harmless,
- * because a stale `cs-flatten` can only affect a transition this same gesture
- * would have crossfaded anyway, whereas undershooting drops the override
- * mid-animation and lets the clip-path zoom play — the original bug.
+ * Only has to outlast the navigation itself now — the class goes on *before*
+ * `router.push`, and the arriving CaseStudy probes it in a mount effect, so the
+ * window must cover route commit plus first render. A cold-ish route can take a
+ * few hundred ms.
  *
- * Not derived from the CSS duration: there is no shared source of truth for it.
- * If `pr-cs-fade-out` is ever lengthened past ~1s, raise this too.
+ * Deliberately generous: overshooting is harmless, since a stale `cs-flatten`
+ * can only skip an intro on a navigation this same gesture would have skipped
+ * anyway, whereas undershooting drops the marker before the probe reads it and
+ * the intro plays into an already-settled scroll. Was 1600ms when it also had
+ * to outlive a 320ms crossfade; trimmed now that only the commit matters.
  */
-const FLATTEN_DURATION_MS = 1600;
+const FLATTEN_DURATION_MS = 900;
 
 /**
  * Handle for the in-flight advance's scroll lock.
  *
  * The unlock has to outlive NextProject: the component unmounts *during* the
- * navigation it starts, so a cleanup-owned timer would leave <html> flattened
- * and scrolling dead forever. But "outlives the component" was previously
+ * navigation it starts, so a cleanup-owned timer would leave <html> locked and
+ * scrolling dead forever. But "outlives the component" was previously
  * implemented as "cannot be cancelled", which meant a click navigation landing
  * inside the 900ms window got its scroll snapped to 0 by the previous page's
  * orphaned timer — scrollTo's `force: true` defeats the usual stopped-Lenis
@@ -89,19 +84,19 @@ const FLATTEN_DURATION_MS = 1600;
 let unlockTimer: number | null = null;
 
 /**
- * Handle for the in-flight advance's flatten flag, at module scope for the same
+ * Handle for the in-flight advance's marker, at module scope for the same
  * reason as `unlockTimer` — NextProject unmounts during the navigation, so a
- * cleanup-owned timer would leave <html> flattened forever.
+ * cleanup-owned timer would leave the marker set forever.
  *
  * Deliberately *not* touched by `abandonCaseStudyAdvance` or
- * `settleCaseStudyAdvance`: those run on the route change, which happens while
- * the animation being suppressed is still playing.
+ * `settleCaseStudyAdvance`: those run on the route change, which happens before
+ * the arriving page has mounted and read the marker.
  */
 let flattenTimer: number | null = null;
 
 /**
- * Take the lock: freeze scroll, flatten the transition, and schedule the
- * unlock. The caller pushes the route itself.
+ * Take the lock: freeze scroll, mark the navigation as gesture-driven, and
+ * schedule the unlock. The caller pushes the route itself.
  *
  * stop() zeroes Lenis's velocity and drops the running animation, so the
  * momentum tail of the gesture that got here dies rather than carrying into the
@@ -120,7 +115,7 @@ export function beginCaseStudyAdvance() {
   window.__lenis?.stop();
 
   // Released on its own timer, independent of the scroll lock, so the route
-  // change cannot cut the suppression short mid-animation.
+  // change cannot clear the marker before the arriving page reads it.
   if (flattenTimer !== null) window.clearTimeout(flattenTimer);
   flattenTimer = window.setTimeout(() => {
     flattenTimer = null;
@@ -148,8 +143,8 @@ export function beginCaseStudyAdvance() {
  * visible flicker. Anything else ending an advance wants
  * `settleCaseStudyAdvance`.
  *
- * Leaves `cs-flatten` alone — that flag answers to the view transition's
- * lifetime, not the lock's.
+ * Leaves `cs-flatten` alone — that marker answers to the arriving page's mount,
+ * not the lock's lifetime.
  */
 function abandonCaseStudyAdvance() {
   if (unlockTimer === null) return;
@@ -160,8 +155,8 @@ function abandonCaseStudyAdvance() {
 
 /**
  * Finish an advance now instead of on its timer: clear the cover and hand scroll
- * back. Does not clear `cs-flatten` — the animation it suppresses is still
- * running at the moment this is called.
+ * back. Does not clear `cs-flatten` — the arriving page has not mounted and read
+ * that marker yet at the moment this is called.
  *
  * This exists because the advance's unlock is scheduled on the page that starts
  * it, but the route change it triggers lands ~16-150ms later — far inside the

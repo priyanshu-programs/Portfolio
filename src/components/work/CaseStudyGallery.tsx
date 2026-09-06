@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type { GalleryItem } from "@/lib/sanity/types";
 import { caseStudyTheme } from "@/lib/color";
+import { coalescedRefresh } from "@/lib/scrollRefresh";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -195,11 +196,15 @@ export default function CaseStudyGallery({
       return () => ctx.revert();
     });
 
-    const refreshId = requestAnimationFrame(() => ScrollTrigger.refresh());
+    // Deferred past the page reveal, and coalesced with NextProject's identical
+    // refresh (both mount on every case study). A refresh re-measures every
+    // registered trigger synchronously; running two of them a frame after route
+    // commit put that reflow batch straight into the reveal.
+    const cancelRefresh = coalescedRefresh();
 
     return () => {
       mm.revert();
-      cancelAnimationFrame(refreshId);
+      cancelRefresh();
     };
   }, [total]);
 
@@ -267,16 +272,16 @@ export default function CaseStudyGallery({
       <div className="fade-in-up text-center lg:hidden">
         <h2
           className="font-medium tracking-[-0.03em]"
-          style={{ fontSize: "clamp(2.4rem, 5vw, 4.25rem)", lineHeight: 1.05 }}
+          style={{ fontSize: "clamp(2.4rem, 5vw, calc(4.25rem * var(--fluid-scale)))", lineHeight: 1.05 }}
         >
           {heading || DEFAULT_HEADING}
         </h2>
         {(subheading || DEFAULT_SUBHEADING) && (
           <p
-            className="mx-auto mt-4 max-w-xl text-[clamp(0.95rem,1.1vw,1.0625rem)] font-medium"
+            className="mx-auto mt-4 max-w-xl text-[clamp(0.95rem,1.1vw,calc(1.0625rem*var(--fluid-scale)))] font-medium"
             style={{
               color: "var(--cs-muted)",
-              fontFamily: "'Helvetica Neue 65 Medium', sans-serif",
+              fontFamily: "var(--font-manrope-stack)",
             }}
           >
             {subheading || DEFAULT_SUBHEADING}
@@ -318,16 +323,16 @@ export default function CaseStudyGallery({
         <div className="shrink-0 px-[var(--cs-gutter)] text-center">
           <h2
             className="font-medium tracking-[-0.03em]"
-            style={{ fontSize: "clamp(2.4rem, 5vw, 4.25rem)", lineHeight: 1.05 }}
+            style={{ fontSize: "clamp(2.4rem, 5vw, calc(4.25rem * var(--fluid-scale)))", lineHeight: 1.05 }}
           >
             {heading || DEFAULT_HEADING}
           </h2>
           {(subheading || DEFAULT_SUBHEADING) && (
             <p
-              className="mx-auto mt-4 max-w-xl text-[clamp(0.95rem,1.1vw,1.0625rem)] font-medium"
+              className="mx-auto mt-4 max-w-xl text-[clamp(0.95rem,1.1vw,calc(1.0625rem*var(--fluid-scale)))] font-medium"
               style={{
                 color: "var(--cs-muted)",
-                fontFamily: "'Helvetica Neue 65 Medium', sans-serif",
+                fontFamily: "var(--font-manrope-stack)",
               }}
             >
               {subheading || DEFAULT_SUBHEADING}
@@ -387,7 +392,7 @@ export default function CaseStudyGallery({
         {/* Only the current index, per the requested single-number counter. */}
         <div
           className="mt-[clamp(1.25rem,2.5vw,2rem)] shrink-0 px-[var(--cs-gutter)] text-center text-[0.89375rem] font-medium tabular-nums tracking-[0.14em]"
-          style={{ color: "var(--cs-ink)", fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+          style={{ color: "var(--cs-ink)", fontFamily: "var(--font-manrope-stack)" }}
           aria-live="polite"
         >
           {String(active + 1).padStart(2, "0")}
@@ -454,7 +459,7 @@ export default function CaseStudyGallery({
       {/* Mobile counter — desktop has its own inside the pinned stage. */}
       <div
         className="fade-in-up mt-2 text-center text-[0.89375rem] font-medium tabular-nums tracking-[0.14em] lg:hidden"
-        style={{ color: "var(--cs-ink)", fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+        style={{ color: "var(--cs-ink)", fontFamily: "var(--font-manrope-stack)" }}
         aria-live="polite"
       >
         {String(active + 1).padStart(2, "0")}

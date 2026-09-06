@@ -165,7 +165,7 @@ const getPaintedPortraitRect = (wrapper: HTMLElement) => {
  * It plays on every genuine load of `/` — reload included — and never under
  * reduced motion. What it deliberately does *not* do is replay on a soft
  * navigation back to home, which would drop a 5.6s scroll-locked sequence on
- * top of the 0.9s view-transition the click already triggered.
+ * top of a click the reader expects to land immediately.
  *
  * ── THE NAVIGATION ENTRY ALONE IS NOT ENOUGH ─────────────────────────────
  * `performance.getEntriesByType("navigation")` holds exactly one entry for the
@@ -376,16 +376,25 @@ const preventKeyScroll = (event: KeyboardEvent) => {
   if (SCROLL_KEYS.has(event.key)) event.preventDefault();
 };
 
+/* The class goes on <body> only, never <html>.
+
+   It used to go on both, and the `html.is-transitioning` rule carried
+   `overflow: hidden` on both axes. That broke the page transition this site
+   used to run, for any navigation overlapping this lock — see the note on the
+   `html, body` reset in globals.css. The body rule locks with `position: fixed`
+   instead, which needs no root overflow; keep it that way, since the reset it
+   respects is still in place.
+
+   The wheel/touch/keydown listeners below are the primary guard regardless; the
+   CSS is belt-and-braces for input paths they don't cover. */
 const lockViewport = () => {
   window.addEventListener("wheel", preventScroll, { passive: false });
   window.addEventListener("touchmove", preventScroll, { passive: false });
   window.addEventListener("keydown", preventKeyScroll);
-  document.documentElement.classList.add("is-transitioning");
   document.body.classList.add("is-transitioning");
 };
 
 const unlockViewport = () => {
-  document.documentElement.classList.remove("is-transitioning");
   document.body.classList.remove("is-transitioning");
   window.removeEventListener("wheel", preventScroll);
   window.removeEventListener("touchmove", preventScroll);
@@ -771,21 +780,16 @@ export default function LandingIntro() {
 
       /* 5 — Outer panels collapse from the edges inward.
 
-         Finishes at ~3.89, just before the veil starts its wipe at 3.95, so the
-         panels close against the dark field they belong to. The margin matters:
-         a collapse still running once the dark begins to leave reads as stray
-         photo slivers on cream rather than as part of the composition.
-
-         That margin is now 0.06s rather than the ~1.1s it had when the wipe ran
-         at 5.0 — ordered, but no longer comfortable. It tightened because the
-         wipe moved earlier to stay ahead of beat 7b (see there). If the last
-         slivers ever read as sitting on cream, push the wipe to 4.05 rather
-         than dragging this collapse earlier — beat 7's fit is measured off it. */
+         Finishes at ~3.89, well before the veil starts its wipe at 5.05 (after
+         beat 7's scale-up has fully settled), so the panels close against the
+         dark field they belong to with a wide margin. The margin matters: a
+         collapse still running once the dark begins to leave reads as stray
+         photo slivers on cream rather than as part of the composition. */
       /* `from: "edges"` degenerates gracefully on mobile: with only two outer
          panels both get stagger position 0, so they collapse together rather
          than in sequence. That is the right read for a symmetric pair, and it
-         finishes at ~3.75 instead of ~3.89 — widening, not narrowing, the
-         margin against the wipe that the note above calls uncomfortable. */
+         finishes at ~3.75 instead of ~3.89 — comfortably inside the same
+         margin against the wipe. */
       tl.to(
         outerEls,
         {
@@ -903,16 +907,11 @@ export default function LandingIntro() {
 
          Its ordering against beat 8 is the safety property: the backing must
          never clear ahead of the dark, or the cutout is briefly exposed against
-         a still-dark field — the exact look the backing exists to prevent.
-
-         That test used to be a simple one, because the dark left by fading:
-         a single global opacity, so "is the dark gone yet" had one answer
-         everywhere on screen. Beat 8 is now a wipe, which makes it POSITIONAL —
-         the dark clears at the top of the viewport long before the bottom, and
-         this box sits at screen centre. The restated invariant is geometric:
-
-           the veil's bottom edge must be above the centre panel's top edge
-           before this backing finishes clearing.
+         a still-dark field — the exact look the backing exists to prevent. Beat
+         8 no longer starts until the scale-up (beat 7) has fully settled at
+         5.05, so this dissolve — finished back at 3.75 — has an even wider
+         margin against it than before; the invariant is unchanged, just no
+         longer the tight constraint it used to be.
 
          This runs *before* the expansion, not across it. The backing fades out
          while the outer panels are still collapsing (beat 5, 3.0 → 3.89), so
@@ -924,20 +923,12 @@ export default function LandingIntro() {
          3.35 → 3.75 puts the whole dissolve inside the collapse window and
          finishes it 0.05s before beat 7 measures and fires at 3.8.
 
-         The safety property still holds, and it is the reason this cannot move
-         much earlier. The portrait is a transparent cutout — with the backing
-         gone it reads as a figure floating on whatever is behind it, so the
-         dark must be leaving by the time the box does. Beat 8's veil starts its
-         wipe at 3.95, and the panel is small and centred here (its top edge is
-         around 0.4H at this point in the sequence, before any scale-up), so the
-         veil is still fully covering when this finishes.
-
-         That is deliberate: the cutout sits against *dark* for the 0.2s between
-         this dissolve ending and the wipe starting, which is correct — a bare
-         figure on the dark field is the intended look at that instant. What must
-         never happen is the reverse ordering at the *bottom* of the wipe, where
-         a half-lifted veil would leave the figure straddling dark and cream.
-         Keep this tween finishing before 3.95 and that cannot arise. */
+         The portrait is a transparent cutout — with the backing gone it reads
+         as a figure floating on whatever is behind it, so the dark must still
+         be covering when this finishes. It is: the veil doesn't start lifting
+         until 5.05, over a second after this dissolve completes, so the bare
+         figure sits against dark for the whole scale-up, which is the intended
+         look — the figure grows into place fully formed before the reveal. */
       tl.fromTo(
         centreEl,
         { backgroundColor: "rgba(255,252,250,1)" },
@@ -949,11 +940,12 @@ export default function LandingIntro() {
         3.35
       );
 
-      /* 8 — Handoff. The hero reveal and the wipe now start together, on the
-         same frame as beat 7b's dissolve is getting underway, so the dark
-         leaves *while* the portrait is still growing into place rather than
-         after it has arrived. The hero's own stagger still brings its elements
-         up from below into the newly uncovered page.
+      /* 8 — Handoff. The hero reveal and the wipe now start together, once the
+         centre panel's scale-up (beat 7) has fully settled at 5.05 — the image
+         finishes growing into place *before* the dark starts to leave and the
+         hero's own elements begin entering, rather than overlapping either.
+         The hero's own stagger still brings its elements up from below into
+         the newly uncovered page.
 
          The dark leaves as a shutter, not a fade: the veil's bottom edge
          travels straight up and off the top of the screen, revealing the cream
@@ -961,34 +953,32 @@ export default function LandingIntro() {
          motion, and the stage's `overflow: hidden` clips it on the way out.
 
          It is the VEIL that moves, never the stage. The stage also hosts the
-         panels, and the centre one is mid-Flip toward the hero portrait at this
-         moment — wiping the stage would carry the portrait off the top with it.
-         That separation is the whole reason `.landing-intro-veil` exists as its
-         own element rather than as a `background` on the stage.
+         panels, and the centre one has just landed its Flip onto the hero
+         portrait at this moment — wiping the stage would carry the portrait
+         off the top with it. That separation is the whole reason
+         `.landing-intro-veil` exists as its own element rather than as a
+         `background` on the stage.
 
          Transform only, deliberately. Animating `top`, `height` or `clip-path`
          here would drop a full-screen layer off the compositor and onto the
-         main thread mid-sequence, alongside the Flip.
+         main thread mid-sequence.
 
-         0.9s, starting at 3.95 and landing at 4.85. Long enough that the wipe
-         still reads as travel rather than a cut, short enough that the veil
-         clears the centre panel's top edge before beat 7b's dissolve has taken
-         the backing away. That second constraint is the binding one: beat 7b
-         derives its safety margin from this exact start and duration, so
-         retiming either without re-checking the table over there reintroduces
-         the bare-cutout-on-dark bug it exists to prevent.
+         0.9s, starting at 5.05 (right as the fit settles) and landing at 5.95.
+         Long enough that the wipe still reads as travel rather than a cut.
+         Beat 7b's backing dissolve (3.35 → 3.75) is long finished by the time
+         this starts, so the bare-cutout-on-dark safety property from that beat
+         holds with a wide margin rather than a tight one.
 
          `power3.out` front-loads the travel, so the page is uncovered early and
          the tail is a long settle — the shutter reads as fast and heavy rather
          than linear. Whatever ease sits here, it must not overshoot: an
          overshooting curve would dip the veil back down and briefly re-cover
          the page it had just revealed. */
-      // Start the hero reveal as the wipe begins, partway into the centre
-      // panel's scale-up: the hero's small internal offsets then bring the
-      // marquee in around the middle of that fit rather than before it starts
-      // or after it settles.
-      tl.add(announceOnce, 3.95);
-      tl.to(veil, { yPercent: -100, duration: 0.9, ease: "power3.out" }, 3.95);
+      // Start the hero reveal and the wipe together, only once the scale-up
+      // has fully settled — a sequential read (image lands, then the dark
+      // leaves and everything else comes in) rather than an overlapping one.
+      tl.add(announceOnce, 5.05);
+      tl.to(veil, { yPercent: -100, duration: 0.9, ease: "power3.out" }, 5.05);
       /* 9 — Handing the figure back: an instant swap, not a cross-fade.
 
          These two layers hold the *same* transparent cutout, stacked over a
@@ -1017,10 +1007,9 @@ export default function LandingIntro() {
          `.landing-intro-panel` in globals.css. Reinstating it means computing
          the scale in JS; that is the fix if this seam ever reads too soft.
 
-         Placed at 5.15, just after the fit settles. It used to sit at 6.5,
-         which left ~1.3s of nothing at the end once the wipe and the dissolve
-         moved earlier — the sequence had visibly finished but the stage was
-         still up and the viewport still locked. */
+         Placed at 5.95, right as the wipe finishes — the fit itself settled
+         back at 5.05, and beat 8's wipe now runs after that rather than across
+         it, so the swap follows the wipe's own landing instead of the fit's. */
 
       /* It is gated on the portrait having actually painted, because the hero's
          WebGL canvas is transparent until its texture loads — swapping to an
@@ -1045,14 +1034,14 @@ export default function LandingIntro() {
           );
         },
         undefined,
-        5.15
+        5.95
       );
 
       /* Hold the timeline open past the swap so its own `onComplete` can't fire
          first and retire the stage mid-handoff. The swap normally resolves well
          inside this window and calls `finishIntro` itself; this only bounds the
          wait. */
-      tl.to({}, { duration: 0.5 }, 5.15);
+      tl.to({}, { duration: 0.5 }, 5.95);
     };
 
     waitForImages().then(build);

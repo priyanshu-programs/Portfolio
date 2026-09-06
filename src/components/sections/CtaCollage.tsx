@@ -14,12 +14,12 @@ gsap.registerPlugin(ScrollTrigger);
 // expressed as percentages so the collage scales gracefully.
 // Added initialZ and endZ for 3D scrolling effect
 const IMAGES = [
-  { src: "/images/cta1-img-5.png", left: 9.0, top: 15.4, w: 12.1, h: 21.5, zInit: -300, zEnd: 1500 },
-  { src: "/images/cta1-img-2.png", left: 18.4, top: 41.1, w: 12.2, h: 20.9, zInit: -600, zEnd: 1800 },
-  { src: "/images/cta1-img-3.png", left: 8.6, top: 66.2, w: 12.5, h: 22.6, zInit: -150, zEnd: 1200 },
-  { src: "/images/cta1-img-4.png", left: 48.1, top: 64.6, w: 12.2, h: 21.5, zInit: -500, zEnd: 1700 },
-  { src: "/images/cta1-img-1.png", left: 64.9, top: 38.0, w: 12.3, h: 21.7, zInit: -250, zEnd: 1300 },
-  { src: "/images/cta1-img-6.png", left: 79.2, top: 11.2, w: 12.3, h: 22.4, zInit: -700, zEnd: 2000 },
+  { src: "/images/cta1-img-5.png", left: 6.5, top: 11.2, w: 16.9, h: 30.1, zInit: -300, zEnd: 1500 },
+  { src: "/images/cta1-img-2.png", left: 15.9, top: 37.4, w: 17.1, h: 29.3, zInit: -600, zEnd: 1800 },
+  { src: "/images/cta1-img-3.png", left: 6.1, top: 61.8, w: 17.5, h: 31.6, zInit: -150, zEnd: 1200 },
+  { src: "/images/cta1-img-4.png", left: 45.7, top: 60.3, w: 17.1, h: 30.1, zInit: -500, zEnd: 1700 },
+  { src: "/images/cta1-img-1.png", left: 70.4, top: 33.8, w: 17.2, h: 30.4, zInit: -250, zEnd: 1300 },
+  { src: "/images/cta1-img-6.png", left: 94, top: 6.7, w: 13.5, h: 24.6, zInit: -700, zEnd: 2000 },
 ];
 
 const HAND_LAYOUT = {
@@ -269,36 +269,77 @@ export default function CtaCollage() {
   }, []);
 
   return (
+    /* A React-owned wrapper that is NOT the pin target.
+
+       ScrollTrigger implements `pin: true` by wrapping the trigger in a
+       .pin-spacer div, so the pinned <section> below is no longer a DOM child
+       of the element React believes is its parent. On the home page this
+       component is mounted conditionally (`isDesktop && <CtaCollage />`), so
+       crossing the lg breakpoint unmounts it alone. React then removes the
+       component's root host node from its parent; if that node were the pinned
+       section, the call would be `main.removeChild(section)` with the section
+       inside the spacer - "the node to be removed is not a child of this node".
+       The cleanup above cannot save it: passive effect cleanups run AFTER the
+       commit has already detached the DOM.
+
+       So the root React removes is this plain div; the spacer and the section
+       stay inside the removed subtree. Layout-neutral: the section is w-full
+       and h-[100dvh], so the div contributes exactly the same height. */
+    <div>
     <section
       ref={containerRef}
       className="relative w-full bg-[#FFFCFA] overflow-hidden min-h-[520px] h-[100dvh]"
       style={{ perspective: "1000px", transformStyle: "preserve-3d" }}
     >
       {/* Desktop / tablet: scattered floating images */}
-      <div className="hidden sm:block absolute inset-0 w-full h-full z-10" style={{ transformStyle: "preserve-3d" }}>
-        {IMAGES.map((img, i) => (
-          <div
-            key={i}
-            ref={(el) => {
-              imagesDesktopRef.current[i] = el;
-            }}
-            className="absolute rounded-md overflow-hidden shadow-2xl"
-            style={{
-              left: `${img.left}%`,
-              top: `${img.top}%`,
-              width: `${img.w}%`,
-              height: `${img.h}%`,
-            }}
-          >
-            <Image
-              src={collage[i] ?? img.src}
-              alt=""
-              fill
-              sizes="130px"
-              className="object-cover"
-            />
-          </div>
-        ))}
+      <div
+        className="absolute inset-0 z-10 flex items-center justify-center"
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        {/* Fixed-ratio stage. Card left/top/width/height percentages resolve
+            against THIS box, not the viewport, so each card's aspect ratio is
+            frozen at its Figma value (1058×526 frame) instead of tracking the
+            window's ratio. Without it a card rendered 324×325 at 1920×1080 but
+            173×411 at 1024×1366 — squashing rather than scaling.
+
+            INVARIANT: the 86vw budget is load-bearing, not cosmetic. Card 6
+            sits at left:94 + w:13.5 = 107.5% of the stage, and the stage is
+            centered, so its right edge lands at (1-S)/2 + 1.075*S of the
+            window. That stays <= 100% only while S <= 86.96vw; at 88vw it
+            overhangs by 0.6vw and clips again. Do not raise this without also
+            pulling IMAGES[5].left inward (94 -> 86.5 would free the budget). */}
+        <div
+          className="relative"
+          style={{
+            width: "min(86vw, calc(120dvh * (1058 / 526)))",
+            aspectRatio: "1058 / 526",
+            transformStyle: "preserve-3d",
+          }}
+        >
+          {IMAGES.map((img, i) => (
+            <div
+              key={i}
+              ref={(el) => {
+                imagesDesktopRef.current[i] = el;
+              }}
+              className="absolute rounded-md overflow-hidden shadow-2xl"
+              style={{
+                left: `${img.left}%`,
+                top: `${img.top}%`,
+                width: `${img.w}%`,
+                height: `${img.h}%`,
+              }}
+            >
+              <Image
+                src={collage[i] ?? img.src}
+                alt=""
+                fill
+                sizes="(max-width: 1440px) 16vw, 18vw"
+                className="object-cover"
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Mobile: simple grid of the same images behind the headline */}
@@ -326,7 +367,7 @@ export default function CtaCollage() {
       >
         <h2
           className="text-center text-white font-light leading-tight"
-          style={{ fontSize: "clamp(28px, 4.6vw, 43px)" }}
+          style={{ fontSize: "clamp(28px, 4.6vw, calc(43px * var(--fluid-scale)))" }}
         >
           {headline}
         </h2>
@@ -338,8 +379,8 @@ export default function CtaCollage() {
         className="absolute inset-0 flex flex-col items-center justify-center px-6 pointer-events-auto z-40 mix-blend-difference"
       >
         <h2
-          className="text-center text-white font-light leading-tight max-w-[800px]"
-          style={{ fontSize: "clamp(26px, 4.6vw, 43px)" }}
+          className="text-center text-white font-light leading-tight max-w-[calc(800px*var(--fluid-scale))]"
+          style={{ fontSize: "clamp(26px, 4.6vw, calc(43px * var(--fluid-scale)))" }}
         >
           <Reveal>{revealHeadline}</Reveal>{" "}
           <Link
@@ -388,5 +429,6 @@ export default function CtaCollage() {
         />
       </div>
     </section>
+    </div>
   );
 }

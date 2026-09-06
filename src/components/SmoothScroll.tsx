@@ -9,32 +9,6 @@ import { settleCaseStudyAdvance } from "@/lib/caseStudyAdvance";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/**
- * Duration of the view-transition reveal, in ms, per breakpoint.
- *
- * Mirrors `::view-transition-new(root)` in globals.css — keep the three values
- * (both durations and the breakpoint) in step with it. ScrollTrigger
- * measurement is deferred by this long so the reflow it forces lands after the
- * reveal has finished compositing rather than during it.
- *
- * Mobile runs a different, shorter animation (fade + scale, no clip-path), so
- * waiting the desktop 900ms there would idle for 520ms after the reveal is
- * already over — leaving the arriving page's pins unmeasured well into the
- * time the reader can scroll it.
- */
-const REVEAL_MS = 900;
-const REVEAL_MS_MOBILE = 380;
-const MOBILE_QUERY = "(max-width: 767px)";
-
-/**
- * Slack between the reveal ending and the reflow starting, in ms.
- *
- * The timer below is anchored to a painted frame, not to the animation's own
- * start, so the two can still drift by a frame or two. Enough margin that the
- * refresh lands *after* the final frame rather than on it.
- */
-const SETTLE_BUFFER_MS = 80;
-
 declare global {
   interface Window {
     __lenis?: Lenis;
@@ -120,9 +94,8 @@ export default function SmoothScroll({
     };
   }, []);
 
-  // Reset scroll to the top on route change. The native view transition swaps
-  // the page, so we snap Lenis + native scroll and re-sync ScrollTrigger for
-  // the incoming page's pinned/scrubbed sections.
+  // Reset scroll to the top on route change: snap Lenis + native scroll, then
+  // re-sync ScrollTrigger for the incoming page's pinned/scrubbed sections.
   useEffect(() => {
     // Settle the outgoing page's advance, if it had one. Its unlock is scheduled
     // on the page that started it and deliberately outlives that component — but
@@ -146,18 +119,17 @@ export default function SmoothScroll({
     // collapsed page, leaving the arriving case study scrollable but with its
     // pins mis-triggering.
     //
-    // Both passes are still needed, but neither may run *during* the page
-    // reveal. A refresh forces synchronous layout of every trigger, and
+    // Both passes force synchronous layout of every trigger, and
     // `invalidateOnRefresh` pins (AboutStage's is +=250%) re-run their
     // function-based start/end values, each reading offsetWidth/offsetHeight.
-    // Landing that reflow batch on top of the compositing view transition is
-    // what made arriving at a pinned route stutter. So: wait for the transition
-    // to finish, then measure.
+    // They used to be deferred past the page-transition reveal so that reflow
+    // batch didn't land on the compositing animation; with route changes now an
+    // instant swap there is nothing to wait for, and measuring immediately is
+    // strictly better — a deferral would leave the arriving page's pins
+    // unmeasured while the reader can already scroll.
     let cancelled = false;
-    let startRaf = 0;
     let raf1 = 0;
     let raf2 = 0;
-    let settleTimer = 0;
 
     const refreshAfterPaint = () => {
       if (cancelled) return;
@@ -174,51 +146,12 @@ export default function SmoothScroll({
       });
     };
 
-    // next-view-transitions owns the ViewTransition object and never hands it
-    // out (it exposes only Link/ViewTransitions/useTransitionRouter), so there
-    // is no `finished` promise to await here. Wait out the reveal by its known
-    // duration instead — the REVEAL_MS constants mirror the animations in
-    // globals.css and must be kept in step with them.
-    //
-    // When the API is unavailable (Firefox/Safari without view transitions) or
-    // the user prefers reduced motion, globals.css runs no reveal, so measuring
-    // immediately is both safe and better.
-    const skipsReveal =
-      typeof document.startViewTransition !== "function" ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (skipsReveal) {
-      refreshAfterPaint();
-    } else {
-      const revealMs = window.matchMedia(MOBILE_QUERY).matches
-        ? REVEAL_MS_MOBILE
-        : REVEAL_MS;
-
-      // Anchored to a painted frame, not to this effect body. The effect runs
-      // when React commits the route, which is *before* the browser starts the
-      // reveal — starting the clock here charges the wait for commit-to-animation
-      // latency against the animation's own duration, and on a phone that
-      // latency is large enough to land both reflows inside the reveal. Which is
-      // precisely what the deferral exists to prevent.
-      //
-      // rAF fires on the next frame the browser paints, by which point the
-      // pseudo-element tree is up and the animation is running, so the timeout
-      // measures from something much closer to the true start.
-      startRaf = requestAnimationFrame(() => {
-        if (cancelled) return;
-        settleTimer = window.setTimeout(
-          refreshAfterPaint,
-          revealMs + SETTLE_BUFFER_MS,
-        );
-      });
-    }
+    refreshAfterPaint();
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(startRaf);
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      window.clearTimeout(settleTimer);
     };
   }, [pathname]);
 

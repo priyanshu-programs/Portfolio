@@ -4,6 +4,7 @@ import { liquidMetalFragmentShader, ShaderMount } from "@paper-design/shaders";
 import { Sparkles } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { playSound } from "@/lib/soundBus";
 
 interface LiquidMetalButtonOwnProps {
   label?: string;
@@ -128,8 +129,13 @@ export function LiquidMetalButton<E extends React.ElementType = "button">({
     (rest as { disabled?: boolean }).disabled,
   );
 
+  // The sounds sit alongside the existing shader-speed feedback rather than at
+  // each call site, so audio and motion cannot drift apart. `hover-tick` is
+  // pointer-gated in the manifest: touch synthesizes a mouseenter right before
+  // every tap, which would otherwise double up with the click sound below.
   const handleMouseEnter = () => {
     if (isDisabled) return;
+    playSound("hover-tick");
     setIsHovered(true);
     shaderMount.current?.setSpeed?.(1);
   };
@@ -142,6 +148,11 @@ export function LiquidMetalButton<E extends React.ElementType = "button">({
 
   const handleClick = (e: React.MouseEvent<HTMLElement>) => {
     if (isDisabled) return;
+    /* Only when this is a real button. Rendered `as={SmartLink}` — which is how
+       "More work" and "About me" use it — the click is a navigation, and
+       SmartLink is already sounding it. Without this guard one click fires both
+       `submit` and `nav-click` on top of each other. */
+    if (!as) playSound("submit");
     if (shaderMount.current?.setSpeed) {
       shaderMount.current.setSpeed(2.4);
       setTimeout(() => {

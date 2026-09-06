@@ -34,14 +34,14 @@ const TopNav = forwardRef<HTMLElement, TopNavProps>(function TopNav(
     return (
       <nav
         ref={ref}
-        className={`relative z-30 flex items-center justify-between px-6 md:px-[40px] pt-[28.8px] md:pt-[39.6px] text-[19.36px] ${inkClass} ${className ?? ""}`}
+        className={`relative z-30 flex items-center justify-between px-6 md:px-[40px] pt-[28.8px] md:pt-[39.6px] text-nav ${inkClass} ${className ?? ""}`}
         style={{ fontWeight: 363, letterSpacing: "-0.01em", ...inkStyle }}
       >
         <span style={{ fontWeight: 363, letterSpacing: "-0.01em" }}>
           © {name}
         </span>
         <ul
-          className="hidden md:flex items-center gap-8 md:gap-[76px]"
+          className="hidden md:flex items-center gap-8 md:gap-[calc(76px*var(--fluid-scale))]"
           style={{ fontWeight: 363, letterSpacing: "-0.01em" }}
         >
           {NAV_LINKS.map((item) => (
@@ -68,14 +68,14 @@ const TopNav = forwardRef<HTMLElement, TopNavProps>(function TopNav(
     >
       <Link
         href="/"
-        className="inline-block py-1 text-[19.36px] transition-opacity duration-300 hover:opacity-70"
+        className="inline-block py-1 text-nav transition-opacity duration-300 hover:opacity-70"
         style={{ fontWeight: 363, letterSpacing: "-0.01em" }}
       >
         © {name}
       </Link>
 
       <nav
-        className="hidden md:flex items-center gap-8 md:gap-[76px] text-[19.36px]"
+        className="hidden md:flex items-center gap-8 md:gap-[calc(76px*var(--fluid-scale))] text-nav"
         style={{ fontWeight: 363, letterSpacing: "-0.01em" }}
       >
         {NAV_LINKS.map(({ label, href }) => (

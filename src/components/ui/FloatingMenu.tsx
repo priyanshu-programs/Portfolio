@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import gsap from "gsap";
 import Link from "@/components/transition/SmartLink";
+import { playSound } from "@/lib/soundBus";
 import { useSiteContent } from "@/components/ContentProvider";
 
 const DEFAULT_NAME = "Priyanshu Roy";
@@ -18,7 +19,7 @@ const MENU_LINKS = [
   { label: "Contact", href: "/contact", image: "/images/menu-contact.webp" },
 ];
 
-const MENU_TAGS = ["Identity", "Visualisation", "Interactive"];
+const MENU_TAGS = ["Design", "Development", "Interactive"];
 
 const RevealLine = ({ children }: { children: ReactNode }) => (
   <span className="block overflow-hidden pb-6 -mb-6">
@@ -218,13 +219,22 @@ export default function FloatingMenu() {
       );
   }, []);
 
+  /**
+   * The sounds live here rather than inside openMenu/closeMenu on purpose.
+   * `closeMenu(true)` is also called by the pathname effect below, which fires
+   * after a navigation the visitor already heard a `nav-click` for — sounding
+   * that auto-close would stack two noises on one interaction. Only a close the
+   * visitor actually asked for should be audible.
+   */
   const toggleMenu = () => {
     if (isAnimatingRef.current) return;
     if (isOpen) {
+      playSound("menu-close");
       closeMenu();
       return;
     }
 
+    playSound("menu-open");
     openMenu();
   };
 
@@ -270,6 +280,8 @@ export default function FloatingMenu() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // Escape is a deliberate close, same as clicking the button.
+        playSound("menu-close");
         closeMenu();
       }
     };
@@ -304,21 +316,36 @@ export default function FloatingMenu() {
             ref={mediaRef}
             className="relative hidden md:block w-[45vw] h-full shrink-0 overflow-hidden"
           >
-            {imageQueue.map((img, i) => (
-              <Image
-                key={img.id}
-                src={img.src}
-                alt="Priyanshu Roy working across identity and web"
-                fill
-                sizes="45vw"
-                className={`object-cover ${
-                  i === imageQueue.length - 1 && imageQueue.length > 1
-                    ? "animate-menu-image-reveal"
-                    : "z-[1]"
-                }`}
-                onAnimationEnd={() => handleAnimationEnd(img.id)}
-              />
-            ))}
+            {imageQueue.map((img, i) => {
+              const isIncoming =
+                i === imageQueue.length - 1 && imageQueue.length > 1;
+
+              return (
+                <Fragment key={img.id}>
+                  <Image
+                    src={img.src}
+                    alt="Priyanshu Roy working across identity and web"
+                    fill
+                    sizes="45vw"
+                    className={`object-cover ${
+                      isIncoming ? "animate-menu-image-reveal" : "z-[1]"
+                    }`}
+                    onAnimationEnd={() => handleAnimationEnd(img.id)}
+                  />
+                  {/* Decorative flash veil. Sits above the incoming image
+                      (z-index 2) and below the name label (z-4). Deliberately
+                      has no onAnimationEnd: the image queue drains off the
+                      image's own animationend, and a second listener here
+                      would just fire redundant drains. */}
+                  {isIncoming && (
+                    <div
+                      aria-hidden
+                      className="absolute inset-0 z-[3] pointer-events-none animate-menu-image-flash"
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
             <div className="absolute left-10 top-[39.6px] text-[20px] font-light tracking-[-0.01em] text-white pointer-events-none mix-blend-difference z-[4]">
               {name}
             </div>
@@ -343,9 +370,15 @@ export default function FloatingMenu() {
                             <Link
                               href={item.href}
                               onClick={() => closeMenu()}
-                              onMouseEnter={() => setHoveredLabel(item.label)}
+                              onMouseEnter={() => {
+                                // The bus throttles this at 90ms, so a fast
+                                // sweep down all four links reads as texture
+                                // rather than a burst. No debounce here.
+                                playSound("hover-tick");
+                                setHoveredLabel(item.label);
+                              }}
                               onMouseLeave={() => setHoveredLabel(null)}
-                              className="relative group inline-block text-[clamp(46px,7vw,90px)] font-light leading-[1.05] tracking-normal"
+                              className="relative group inline-block text-[clamp(46px,7vw,calc(90px*var(--fluid-scale)))] font-light leading-[1.05] tracking-normal"
                             >
                               {item.label}
                               <span className={`absolute left-0 bottom-[-4px] w-full h-[1.5px] bg-current origin-left transition-transform duration-300 ease-out ${isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
@@ -359,7 +392,7 @@ export default function FloatingMenu() {
                 </nav>
 
                 <div className="self-start md:self-end md:mb-4">
-                  <div className="space-y-[6px] text-[clamp(18px,1.8vw,24px)] font-light italic leading-tight text-white/80">
+                  <div className="space-y-[6px] text-[clamp(18px,1.8vw,calc(24px*var(--fluid-scale)))] font-light leading-tight text-white/80">
                     {tags.map((tag) => (
                       <RevealLine key={tag}>{tag}</RevealLine>
                     ))}
@@ -370,7 +403,7 @@ export default function FloatingMenu() {
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-5 pt-12 text-[15px] leading-[1.35] text-white/50 w-full">
               <div>
-                <RevealLine>India</RevealLine>
+                <RevealLine>22.57°N, 88.36°E</RevealLine>
               </div>
               <div className="sm:text-right">
                 <RevealLine>Available worldwide</RevealLine>
@@ -398,9 +431,10 @@ export default function FloatingMenu() {
           <Link
             href="/contact"
             onClick={() => closeMenu()}
-            className="flex h-[56px] md:h-[60px] items-center justify-center rounded-full border border-white/20 px-8 text-[15px] text-white transition-all hover:scale-105"
+            className="group relative overflow-hidden flex h-[56px] md:h-[60px] items-center justify-center rounded-full border border-white/20 px-8 text-[15px] text-white transition-all hover:scale-105"
           >
-            Get in touch
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#60a5fa_0%,_var(--color-border-deep)_50%,_#818cf8_100%)] animate-flow-gradient rounded-full opacity-0 blur-lg transition-[opacity,filter] duration-[600ms] ease-[cubic-bezier(0.85,0,0.15,1)] z-0 group-hover:opacity-100 group-hover:blur-none" />
+            <span className="relative z-10">Get in touch</span>
           </Link>
         </div>
 
