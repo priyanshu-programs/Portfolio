@@ -164,6 +164,29 @@ export interface WorkProject {
   hoverImage?: string;
   /** Hover-card colour, projected from the colour picker's hex. Falls back to `bgColor`. */
   hoverBg?: string;
+  /**
+   * Work that is underway but not openable: the card keeps its place in the
+   * grid, wears the COMING SOON tape and stops being a link. Unlike `visible`
+   * and `pinnedHome` — which never leave GROQ — this one is read by components.
+   */
+  comingSoon?: boolean;
+  /** Text repeated along the tape; empty falls back to "COMING SOON". */
+  comingSoonLabel?: string;
+  /**
+   * The coming-soon note's contents. It is drawn as an admission ticket, and
+   * each of these is one line of it — all optional, because the note drops any
+   * block left empty rather than reserving space for it.
+   */
+  /** Small caps lines across the top. At most two. */
+  noteHeader?: string[];
+  /** The large script line; falls back to `comingSoonLabel`, then "Coming soon". */
+  noteTitle?: string;
+  /** The red stamped line, e.g. "MAY 11 2024". Free text, not a real date. */
+  noteDate?: string;
+  /** Which hours on the clock strip are ringed, 1–12. At most two. */
+  noteHours?: number[];
+  /** Which row those ringed hours sit on. Defaults to "pm". */
+  noteMeridiem?: "am" | "pm";
 }
 
 export interface GalleryItem {

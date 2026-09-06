@@ -191,7 +191,7 @@ async function main() {
       ornament,
       landscape: servicesImg,
       cards: [
-        { _key: "c1", title: "Brand\nDesign", copy: "Identity that earns recognition before a single word is spoken.", iconKey: "trend" },
+        { _key: "c1", title: "Web\nDesign", copy: "Identity that earns recognition before a single word is spoken.", iconKey: "trend" },
         { _key: "c2", title: "Web\nDevelopment", copy: "Fast, scalable websites engineered to perform and convert.", iconKey: "nodes" },
         { _key: "c3", title: "UI / UX\nDesign", copy: "Experiences that feel effortless from the very first click.", iconKey: "wand" },
       ],

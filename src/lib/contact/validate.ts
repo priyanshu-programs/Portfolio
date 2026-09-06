@@ -14,8 +14,11 @@
 export const CONTACT_FIELDS = [
   "name",
   "email",
-  "organization",
+  "socials",
   "services",
+  "budget",
+  "problem",
+  "success",
   "message",
 ] as const;
 
@@ -61,11 +64,26 @@ export const FIELD_MAX_LENGTH: Record<ContactFieldName, number> = {
   name: 80,
   // RFC 5321's maximum address length.
   email: 254,
-  organization: 120,
+  socials: 200,
   services: 200,
+  budget: 120,
+  // Roomy enough for a few paragraphs, well short of the message's allowance —
+  // these are context for the message, not a replacement for it.
+  problem: 1000,
+  success: 1000,
   // Arbitrary but deliberate: bounds the email body and the request payload.
   message: 4000,
 };
+
+/**
+ * Fields rendered as textareas, where newlines are content rather than an
+ * injection attempt. Everything else is a single line and is checked for them.
+ */
+export const MULTILINE_FIELDS = new Set<ContactFieldName>([
+  "problem",
+  "success",
+  "message",
+]);
 
 /**
  * Email shape check, intentionally stricter than RFC 5322.
@@ -90,7 +108,7 @@ export type ContactValidationResult =
   | { ok: false; fieldErrors: ContactFieldErrors };
 
 /**
- * Validate the five submitted fields.
+ * Validate the submitted fields.
  *
  * Values are expected to be already trimmed by the caller. Every rule runs so
  * the visitor sees all their mistakes at once rather than one per round trip.
@@ -100,8 +118,11 @@ export function validateContact(values: ContactValues): ContactValidationResult 
 
   const name = values.name ?? "";
   const email = values.email ?? "";
-  const organization = values.organization ?? "";
+  const socials = values.socials ?? "";
   const services = values.services ?? "";
+  const budget = values.budget ?? "";
+  const problem = values.problem ?? "";
+  const success = values.success ?? "";
   const message = values.message ?? "";
 
   if (!name) {
@@ -122,21 +143,45 @@ export function validateContact(values: ContactValues): ContactValidationResult 
     fieldErrors.email = "That email doesn't look right.";
   }
 
-  if (organization.length > FIELD_MAX_LENGTH.organization) {
-    fieldErrors.organization = `Keep it under ${FIELD_MAX_LENGTH.organization} characters.`;
-  } else if (CONTAINS_NEWLINE.test(organization)) {
-    fieldErrors.organization = "Keep this to a single line.";
+  // Optional: plenty of people arrive with nothing to link to yet.
+  if (socials.length > FIELD_MAX_LENGTH.socials) {
+    fieldErrors.socials = `Keep it under ${FIELD_MAX_LENGTH.socials} characters.`;
+  } else if (CONTAINS_NEWLINE.test(socials)) {
+    fieldErrors.socials = "Keep this to a single line.";
   }
 
-  if (services.length > FIELD_MAX_LENGTH.services) {
+  if (!services) {
+    fieldErrors.services = "Tell me what you need built.";
+  } else if (services.length > FIELD_MAX_LENGTH.services) {
     fieldErrors.services = `Keep it under ${FIELD_MAX_LENGTH.services} characters.`;
   } else if (CONTAINS_NEWLINE.test(services)) {
     fieldErrors.services = "Keep this to a single line.";
   }
 
-  if (!message) {
-    fieldErrors.message = "Don't leave me guessing.";
-  } else if (message.length < 10) {
+  if (!budget) {
+    fieldErrors.budget =
+      "A ballpark is enough — I just need to know the shape of it.";
+  } else if (budget.length > FIELD_MAX_LENGTH.budget) {
+    fieldErrors.budget = `Keep it under ${FIELD_MAX_LENGTH.budget} characters.`;
+  } else if (CONTAINS_NEWLINE.test(budget)) {
+    fieldErrors.budget = "Keep this to a single line.";
+  }
+
+  // Multiline — no newline check, the textarea invites them.
+  if (!problem) {
+    fieldErrors.problem = "Tell me what needs solving.";
+  } else if (problem.length > FIELD_MAX_LENGTH.problem) {
+    fieldErrors.problem = `That's over ${FIELD_MAX_LENGTH.problem} characters. Trim it — the rest can wait for the call.`;
+  }
+
+  if (!success) {
+    fieldErrors.success = "Tell me what success looks like here.";
+  } else if (success.length > FIELD_MAX_LENGTH.success) {
+    fieldErrors.success = `That's over ${FIELD_MAX_LENGTH.success} characters. Trim it — the rest can wait for the call.`;
+  }
+
+  // Optional: message is just a place to add color beyond the fields above.
+  if (message.length > 0 && message.length < 10) {
     fieldErrors.message =
       "A sentence or two is plenty — I just need somewhere to start.";
   } else if (message.length > FIELD_MAX_LENGTH.message) {
@@ -149,6 +194,6 @@ export function validateContact(values: ContactValues): ContactValidationResult 
 
   return {
     ok: true,
-    data: { name, email, organization, services, message },
+    data: { name, email, socials, services, budget, problem, success, message },
   };
 }

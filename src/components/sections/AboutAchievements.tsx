@@ -124,7 +124,7 @@ export default function AboutAchievements() {
       ref={containerRef}
       className="relative w-full bg-cream py-16 md:py-28 lg:pb-36"
     >
-      <div className="relative mx-auto w-full max-w-[1360px] px-6 md:px-[40px] lg:px-[60px] flex flex-col gap-24 lg:gap-36">
+      <div className="relative mx-auto w-full max-w-[calc(1360px*var(--fluid-scale))] px-6 md:px-[40px] lg:px-[60px] flex flex-col gap-24 lg:gap-36">
         {visibleAchievements.map((item, index) => {
           const isEven = index % 2 === 0;
           const badgeSrc = item.badge || (isEven ? "/images/smart-bengal-badge.png" : "/images/aicte-logo.png");
@@ -194,7 +194,7 @@ export default function AboutAchievements() {
                 {item.title && (
                   <h2
                     className="mb-6 text-2xl font-normal leading-[1.15] tracking-[-0.03em] text-ink sm:text-3xl md:text-[2.5rem] lg:text-[2.75rem] max-w-[25ch]"
-                    style={{ fontFamily: "var(--font-hanken), sans-serif" }}
+                    style={{ fontFamily: "var(--font-manrope-stack)", fontWeight: 400 }}
                   >
                     {titleLines.map((line, lIdx) => (
                       <span key={lIdx} className="block">
@@ -208,7 +208,7 @@ export default function AboutAchievements() {
                 {item.description && (
                   <p
                     className="max-w-[48ch] text-base leading-[1.65] text-ink md:text-lg text-left"
-                    style={{ fontFamily: "var(--font-hanken), sans-serif" }}
+                    style={{ fontFamily: "var(--font-manrope-stack)", fontWeight: 400 }}
                   >
                     {item.description}
                   </p>

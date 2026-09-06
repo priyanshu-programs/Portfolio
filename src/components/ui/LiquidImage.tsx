@@ -3,6 +3,9 @@
 import React, { useEffect, useRef } from "react";
 import Image from "next/image";
 import { Renderer, Texture, Program, Geometry, Mesh, Vec2 } from "ogl";
+// A plain exported const, not the hook — no client-boundary or subscription
+// cost. It is the one place the `lg` breakpoint is stated for JS.
+import { DESKTOP_QUERY } from "@/lib/useMediaQuery";
 
 /* ── Grid displacement tuning ──────────────────────────────────────────────
    The picture is diced into a grid of cells, each holding a signed x/y offset.
@@ -99,6 +102,25 @@ const fragment = `
  *  to paint that panel with a matching crop. Changing one means changing all. */
 export type LiquidImageFit = "contain" | "cover";
 
+/**
+ * What a caller may ask for: either fit outright, or the hero's breakpoint fork.
+ *
+ * `responsive-hero` exists because the fork used to be made in React, from
+ * `useIsDesktop()`, which is `false` on its first render by construction (see
+ * the docblock in src/lib/useMediaQuery.ts). That is one commit of `cover` — a
+ * scaled-up, focal-cropped portrait — before it corrects, which is visible on
+ * every soft navigation to the homepage. Expressed as CSS instead, the mapping
+ * is right in the first painted frame, because a compiled `lg:` rule does not
+ * wait for hydration.
+ *
+ * Both render paths resolve it independently and must agree: the fallback
+ * <img> through `object-cover lg:object-contain` plus the
+ * `--liquid-object-position` custom property, and WebGL through `resolveFit()`
+ * below. `DESKTOP_QUERY` is the single source for the breakpoint; globals.css
+ * carries a hand-copy of it that has to be changed alongside.
+ */
+export type LiquidImageFitMode = LiquidImageFit | "responsive-hero";
+
 /** Which point of the *image* is pinned to the same point of the box — the
  *  fixed point of the crop, i.e. CSS `object-position`. Fractions of the
  *  image's own width/height, x from the left, y from the BOTTOM (matching the
@@ -120,8 +142,9 @@ interface LiquidImageProps {
   alt: string;
   className?: string;
   /** Defaults to `contain`, which is what every caller wanted before the hero
-   *  needed to fill a full-viewport box on small screens. */
-  fit?: LiquidImageFit;
+   *  needed to fill a full-viewport box on small screens. `responsive-hero`
+   *  is that fork done in CSS rather than in React — see the type. */
+  fit?: LiquidImageFitMode;
   /** Defaults to centre-x / bottom-y — the original hard-coded behaviour. */
   focus?: LiquidImageFocus;
   /** Overrides the responsive `sizes` hint for the fallback <img>. Only matters
@@ -146,6 +169,24 @@ export const LIQUID_IMAGE_READY_ATTR = "data-liquid-ready";
 // same-origin and used directly.
 const toTextureSrc = (src: string) =>
   /^https?:\/\//.test(src) ? `/api/image?url=${encodeURIComponent(src)}` : src;
+
+/**
+ * The WebGL half of the `responsive-hero` fork.
+ *
+ * Reads `matchMedia` directly rather than taking a boolean from React. It is
+ * only ever called from `resize()`, which only ever runs on the client, so the
+ * answer is correct the first time — no first-render `false` to correct, which
+ * is the whole point of the mode. It also means a breakpoint cross reaches the
+ * canvas through the ResizeObserver and window resize listener already wired up
+ * below, without needing a re-render at all.
+ *
+ * MUST agree with the fallback <img>'s `lg:` classes and with
+ * `--liquid-object-position` in globals.css.
+ */
+const resolveFit = (mode: LiquidImageFitMode): LiquidImageFit => {
+  if (mode !== "responsive-hero") return mode;
+  return window.matchMedia(DESKTOP_QUERY).matches ? "contain" : "cover";
+};
 
 const canCreateWebGLContext = () => {
   if (typeof window === "undefined") {
@@ -188,7 +229,7 @@ export default function LiquidImage({
      breakpoint flip also resizes the box, which fires the ResizeObserver, but
      that is incidental rather than guaranteed — a caller could change the focus
      alone. The effect below calls it explicitly. */
-  const fitRef = useRef<{ fit: LiquidImageFit; x: number; y: number }>({
+  const fitRef = useRef<{ fit: LiquidImageFitMode; x: number; y: number }>({
     fit,
     x: focusX,
     y: focusY,
@@ -226,7 +267,10 @@ export default function LiquidImage({
     // Show fallback by default; hide it once WebGL canvas is confirmed working
     const showFallback = () => {
       canvas.style.display = "none";
-      if (fallback) fallback.style.display = "";
+      // Explicit rather than `""`: the wrapper now carries an inline
+      // `display: none` from render (see the JSX below), so clearing the
+      // property would revert to that and leave the fallback hidden.
+      if (fallback) fallback.style.display = "block";
       // The fallback <img> is now the visible layer, so readiness is *its*
       // load state — which `complete` already answers for a cached or
       // finished decode.
@@ -426,7 +470,9 @@ export default function LiquidImage({
            samples a sub-rect (cropping it). Contain scales the axis the box has
            to spare; cover scales the other one. The branches are exact mirrors,
            which is why they read as swapped assignments. */
-        if (fitRef.current.fit === "cover") {
+        const resolvedFit = resolveFit(fitRef.current.fit);
+
+        if (resolvedFit === "cover") {
           if (canvasAspect > imageAspect) {
             scaleX = 1;
             scaleY = imageAspect / canvasAspect;
@@ -454,11 +500,17 @@ export default function LiquidImage({
            shader's own boundary checks already blank any out-of-range sample,
            so the unclamped value is safe as well as honest — and it is what
            keeps this in step with the fallback's CSS object-position, which
-           applies no such clamp either. */
-        program.uniforms.uAnchor.value.set(
-          fitRef.current.x,
-          fitRef.current.y
-        );
+           applies no such clamp either.
+
+           Under `responsive-hero` the focal x applies only on the cover side.
+           Once the art letterboxes there is no crop to steer, and an off-centre
+           anchor would just slide the letterboxed picture sideways in its box —
+           which is why the React version of this fork passed `focus`
+           conditionally. Resolving it here keeps that behaviour while letting
+           the caller pass one unconditional focus. */
+        const anchorX = resolvedFit === "cover" ? fitRef.current.x : 0.5;
+
+        program.uniforms.uAnchor.value.set(anchorX, fitRef.current.y);
       }
 
       dirty = true; // size/texture changed — redraw the base image once
@@ -506,6 +558,7 @@ export default function LiquidImage({
     container.addEventListener('mousemove', updateMouse);
     container.addEventListener('touchstart', updateMouse, { passive: false });
     container.addEventListener('touchmove', updateMouse, { passive: false });
+
 
     // Pause rendering entirely while the element is scrolled out of view.
     const intersectionObserver = new IntersectionObserver(
@@ -648,8 +701,18 @@ export default function LiquidImage({
       role="img"
       aria-label={alt}
     >
-      {/* Fallback image — only visible when WebGL is unavailable */}
-      <div ref={fallbackRef} className="absolute inset-0">
+      {/* Fallback image — only visible when WebGL is unavailable.
+          Hidden from the very first render rather than by the effect below:
+          the canvas is transparent until its texture loads and a frame is
+          drawn, so a fallback that starts visible IS the first painted frame
+          of this component on every mount — a full-size picture that then
+          vanishes. On a soft navigation to a page holding one of these, that
+          frame is the whole flash. `showFallback()` opts it back in. */}
+      <div
+        ref={fallbackRef}
+        className="absolute inset-0"
+        style={{ display: "none" }}
+      >
         <Image
           src={src}
           alt=""
@@ -657,7 +720,13 @@ export default function LiquidImage({
           sizes={
             sizes ?? "(max-width: 640px) 95vw, (max-width: 1024px) 80vw, 750px"
           }
-          className={fit === "cover" ? "object-cover" : "object-contain"}
+          className={
+            fit === "responsive-hero"
+              ? "object-cover lg:object-contain"
+              : fit === "cover"
+                ? "object-cover"
+                : "object-contain"
+          }
           /* Inline rather than a Tailwind class because the focal x is an
              arbitrary fraction (0.27 for the hero) that isn't on the utility
              scale.
@@ -667,9 +736,18 @@ export default function LiquidImage({
              the shader's uAnchor expresses — so the two paths agree exactly, as
              long as neither clamps (see the uAnchor note in resize()). The y is
              flipped only because this UV space measures from the bottom while
-             object-position measures from the top. */
+             object-position measures from the top.
+
+             Under `responsive-hero` the anchor has to fork at the breakpoint,
+             and an inline style cannot carry a media query — so it defers to a
+             custom property that globals.css defines and flips. The fallback
+             here is the desktop/contain value, so a missing rule degrades to
+             centred rather than to the mobile crop. */
           style={{
-            objectPosition: `${focusX * 100}% ${(1 - focusY) * 100}%`,
+            objectPosition:
+              fit === "responsive-hero"
+                ? "var(--liquid-object-position, 50% 100%)"
+                : `${focusX * 100}% ${(1 - focusY) * 100}%`,
           }}
           aria-hidden="true"
         />

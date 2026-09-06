@@ -22,7 +22,7 @@ const DEFAULT_TITLE = "Brand Designer & Web Developer";
  * inversion the site itself wears.
  *
  * Fonts are read from public/fonts rather than next/font because Satori needs
- * raw font bytes. Only ttf/otf/woff parse, so these are the .ttf cuts.
+ * raw font bytes. Only ttf/otf/woff parse, so these are .ttf/.woff cuts.
  */
 export default async function Image() {
   const content = await getSiteContent();
@@ -30,9 +30,9 @@ export default async function Image() {
   const tagline = content?.settings?.seoDescription ?? DEFAULT_TITLE;
 
   const fontDir = join(process.cwd(), "public/fonts");
-  const [medium, light] = await Promise.all([
-    readFile(join(fontDir, "HelveticaNeueMedium.ttf")),
-    readFile(join(fontDir, "HelveticaNeueLight.ttf")),
+  const [medium, regular] = await Promise.all([
+    readFile(join(fontDir, "Manrope-Medium.woff")),
+    readFile(join(fontDir, "Manrope-Regular.woff")),
   ]);
 
   return new ImageResponse(
@@ -47,7 +47,7 @@ export default async function Image() {
           backgroundColor: "#ffffff",
           color: "#000000",
           padding: "80px",
-          fontFamily: "HelveticaLight",
+          fontFamily: "ManropeRegular",
         }}
       >
         <div style={{ display: "flex", fontSize: 30, letterSpacing: "0.18em" }}>
@@ -58,7 +58,7 @@ export default async function Image() {
           style={{
             display: "flex",
             flexDirection: "column",
-            fontFamily: "HelveticaMedium",
+            fontFamily: "ManropeMedium",
             fontSize: 82,
             lineHeight: 1.05,
             letterSpacing: "-0.02em",
@@ -87,8 +87,8 @@ export default async function Image() {
     {
       ...size,
       fonts: [
-        { name: "HelveticaMedium", data: medium, weight: 500, style: "normal" },
-        { name: "HelveticaLight", data: light, weight: 300, style: "normal" },
+        { name: "ManropeMedium", data: medium, weight: 500, style: "normal" },
+        { name: "ManropeRegular", data: regular, weight: 400, style: "normal" },
       ],
     }
   );

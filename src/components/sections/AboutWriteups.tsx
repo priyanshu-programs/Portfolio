@@ -29,10 +29,10 @@ export default function AboutWriteups({
 
   return (
     <section className="border-t border-current/15 px-5 py-20 md:px-10 md:py-32" aria-labelledby="about-writeups-heading">
-      <div className="mx-auto grid max-w-[1440px] gap-12 lg:grid-cols-[0.8fr_1.4fr] lg:gap-24">
+      <div className="mx-auto grid max-w-[calc(1440px*var(--fluid-scale))] gap-12 lg:grid-cols-[0.8fr_1.4fr] lg:gap-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <p className="mb-5 text-xs uppercase tracking-[0.18em] opacity-60">About</p>
-          <h2 id="about-writeups-heading" className="max-w-xl text-4xl leading-[0.95] tracking-[-0.04em] md:text-6xl">
+          <h2 id="about-writeups-heading" className="max-w-xl text-4xl leading-[0.95] tracking-[-0.04em] md:text-[calc(3.75rem*var(--fluid-scale))]">
             {heading}
           </h2>
           {intro ? <p className="mt-6 max-w-sm text-base leading-relaxed opacity-65">{intro}</p> : null}

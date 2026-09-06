@@ -46,7 +46,10 @@ const data = await client.fetch(`{
     "approach": count(approach),
     "gallery": count(gallery),
     pageBg, textColor, navColor,
-    "visible": visible != false
+    "visible": visible != false,
+    "comingSoon": comingSoon == true,
+    comingSoonLabel,
+    noteHeader, noteTitle, noteDate, noteHours, noteMeridiem
   }
 }`);
 
@@ -82,6 +85,13 @@ interface CaseStudyRow {
   textColor?: string;
   navColor?: string;
   visible?: boolean;
+  comingSoon?: boolean;
+  comingSoonLabel?: string;
+  noteHeader?: string[];
+  noteTitle?: string;
+  noteDate?: string;
+  noteHours?: number[];
+  noteMeridiem?: string;
 }
 
 const caseStudies: CaseStudyRow[] = data?.caseStudies ?? [];
@@ -104,10 +114,23 @@ if (caseStudies.length === 0) {
 // has to be render-ready.
 const live = caseStudies.filter((p) => p.visible !== false);
 
+// Taped projects show on the index but their case study 404s, so an empty
+// gallery or approach there is the point rather than a defect. They still have
+// to look right on the card, so the colour checks below keep applying.
+const taped = live.filter((p) => p.comingSoon);
+const openable = live.filter((p) => !p.comingSoon);
+
 if (caseStudies.length > 0 && live.length === 0) {
   problems.push(
     `all ${caseStudies.length} workProject documents are hidden ("Visible on site" off) — ` +
       `/work would be empty and the homepage work row would render nothing`
+  );
+}
+
+if (live.length > 0 && openable.length === 0) {
+  problems.push(
+    `all ${live.length} visible workProject document(s) are marked "Coming soon" — ` +
+      `every /work card is taped and no case study can be opened`
   );
 }
 
@@ -116,11 +139,24 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 for (const p of live) {
   const label = p.title ?? "(untitled)";
   if (!p.slug) problems.push(`"${label}" has no slug — unreachable at /work/<slug>`);
-  if (!p.cover?.includes("cdn.sanity.io"))
-    problems.push(`"${label}" has no cover image`);
-  if (!(p.challenge ?? 0)) problems.push(`"${label}" has an empty challenge`);
-  if (!(p.approach ?? 0)) problems.push(`"${label}" has an empty approach`);
-  if (!(p.gallery ?? 0)) problems.push(`"${label}" has an empty gallery`);
+  // The note falls back to the tape label and then to "Coming soon", so a bare
+  // one still renders — it just wastes the ticket, which is mostly blank paper
+  // with a single line on it.
+  if (p.comingSoon && !p.noteTitle && !p.noteHeader?.length && !p.noteDate) {
+    warnings.push(
+      `"${label}" is coming soon but its note is empty — set Note title, header lines or date, ` +
+        `or the card shows a blank ticket`
+    );
+  }
+  if (p.noteHours?.some((n) => !Number.isInteger(n) || n < 1 || n > 12))
+    warnings.push(`"${label}" has a circled hour outside 1–12 — it will not be ringed`);
+  if (!p.comingSoon) {
+    if (!p.cover?.includes("cdn.sanity.io"))
+      problems.push(`"${label}" has no cover image`);
+    if (!(p.challenge ?? 0)) problems.push(`"${label}" has an empty challenge`);
+    if (!(p.approach ?? 0)) problems.push(`"${label}" has an empty approach`);
+    if (!(p.gallery ?? 0)) problems.push(`"${label}" has an empty gallery`);
+  }
   // A malformed hex silently falls back to the derived colour, so the editor
   // sees "my colour didn't apply" with nothing explaining why.
   if (p.textColor && !HEX.test(p.textColor))
@@ -130,7 +166,8 @@ for (const p of live) {
 }
 
 // A duplicate slug means one of the two /work/<slug> pages is unreachable.
-const slugs = live.map((p) => p.slug).filter(Boolean);
+// Taped projects have no page to collide over.
+const slugs = openable.map((p) => p.slug).filter(Boolean);
 const dupes = slugs.filter((s, i) => slugs.indexOf(s) !== i);
 if (dupes.length) problems.push(`duplicate slugs: ${[...new Set(dupes)].join(", ")}`);
 
@@ -175,6 +212,12 @@ if (hidden > 0)
   warnings.push(
     `${hidden} workProject document(s) hidden ("Visible on site" off) — absent from the ` +
       `homepage and /work, and their /work/<slug> URLs return 404`
+  );
+if (taped.length > 0)
+  warnings.push(
+    `${taped.length} workProject document(s) marked "Coming soon" — shown on the index ` +
+      `under the tape, not clickable, and their /work/<slug> URLs return 404: ` +
+      taped.map((p) => `"${p.title ?? "(untitled)"}"`).join(", ")
   );
 if (!data?.tags)
   warnings.push("no tag documents — the /work filter pills will be empty");

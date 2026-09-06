@@ -60,6 +60,101 @@ export const workProject = defineType({
       initialValue: true,
     }),
     defineField({
+      name: "comingSoon",
+      title: "Coming soon",
+      type: "boolean",
+      description:
+        "Keeps the project on the home page and the work index but wraps its card in a COMING SOON tape. The card stops being clickable and its /work/<slug> URL returns a 404 — for work that is underway but not ready to open.",
+      group: "index",
+      initialValue: false,
+    }),
+    defineField({
+      name: "comingSoonLabel",
+      title: "Tape label",
+      type: "string",
+      description:
+        'Text repeated along the tape, e.g. "IN PROGRESS" or "LAUNCHING Q1". Defaults to "COMING SOON" when empty.',
+      group: "index",
+      // Only meaningful while the tape is showing, and the index group is the
+      // one editors open first — keep it out of the way until it applies.
+      hidden: ({ document }) => !document?.comingSoon,
+    }),
+
+    /*
+     * The coming-soon note is drawn as an admission ticket: two small caps
+     * lines, a script title, a stamped date, and a strip of hours with one or
+     * two ringed. Every part is optional — the note drops any block left empty
+     * and still reads, so an editor can fill in as much or as little as the
+     * project warrants. All five hide until "Coming soon" is on, matching
+     * comingSoonLabel above.
+     */
+    defineField({
+      name: "noteHeader",
+      title: "Note header lines",
+      type: "array",
+      of: [defineArrayMember({ type: "string" })],
+      description:
+        'The small caps lines across the top of the note, e.g. "DORIAN\'S" then "THROUGH THE RECORD SHOP". Leave empty to omit them.',
+      group: "index",
+      // Two is what the layout holds; a third would crowd the script title.
+      validation: (Rule) => Rule.max(2),
+      hidden: ({ document }) => !document?.comingSoon,
+    }),
+    defineField({
+      name: "noteTitle",
+      title: "Note title",
+      type: "string",
+      description:
+        'The large handwritten line in the middle of the note, e.g. "Proximity". Falls back to the tape label, then to "Coming soon".',
+      group: "index",
+      hidden: ({ document }) => !document?.comingSoon,
+    }),
+    defineField({
+      name: "noteDate",
+      title: "Note date",
+      type: "string",
+      description:
+        'The red stamped line, e.g. "MAY 11 2024". Free text rather than a date field on purpose — it reads as hand-stamped, and it need not be a real calendar date. Leave empty to omit it.',
+      group: "index",
+      hidden: ({ document }) => !document?.comingSoon,
+    }),
+    defineField({
+      name: "noteHours",
+      title: "Circled hours",
+      type: "array",
+      of: [defineArrayMember({ type: "number" })],
+      description:
+        "Which hours on the note's clock strip get ringed, 1–12. Up to two. Leave empty to print the strip with nothing circled.",
+      group: "index",
+      validation: (Rule) =>
+        Rule.max(2).custom((value) => {
+          if (!value) return true;
+          const bad = value.filter(
+            (n) => typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 12
+          );
+          return bad.length === 0 ? true : "Hours must be whole numbers from 1 to 12.";
+        }),
+      hidden: ({ document }) => !document?.comingSoon,
+    }),
+    defineField({
+      name: "noteMeridiem",
+      title: "Circled hours row",
+      type: "string",
+      description: "Which row the circled hours sit on.",
+      group: "index",
+      options: {
+        list: [
+          { title: "AM", value: "am" },
+          { title: "PM", value: "pm" },
+        ],
+        layout: "radio",
+        direction: "horizontal",
+      },
+      initialValue: "pm",
+      hidden: ({ document }) => !document?.comingSoon,
+    }),
+
+    defineField({
       name: "pinnedHome",
       title: "Show in Recent Work (Home page)",
       type: "boolean",
@@ -323,11 +418,18 @@ export const workProject = defineType({
       category: "category",
       media: "thumbnail",
       visible: "visible",
+      comingSoon: "comingSoon",
     },
     // Documents created before the `visible` field existed have it undefined,
-    // which reads as visible everywhere else — mirror that here.
-    prepare: ({ title, category, media, visible }) => ({
-      title: visible === false ? `${title} — hidden` : title,
+    // which reads as visible everywhere else — mirror that here. Hidden wins
+    // over coming soon: it is the stronger statement about the document.
+    prepare: ({ title, category, media, visible, comingSoon }) => ({
+      title:
+        visible === false
+          ? `${title} — hidden`
+          : comingSoon
+            ? `${title} — coming soon`
+            : title,
       subtitle: category,
       media,
     }),

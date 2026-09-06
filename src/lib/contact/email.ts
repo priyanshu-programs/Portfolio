@@ -2,7 +2,7 @@ import "server-only";
 
 import { Resend } from "resend";
 
-import type { ContactFieldName } from "./validate";
+import { MULTILINE_FIELDS, type ContactFieldName } from "./validate";
 
 /**
  * Delivery of contact form submissions, via Resend.
@@ -46,15 +46,34 @@ function headerSafe(value: string): string {
 }
 
 /** Blank optionals render as an em-dash so the message keeps a scannable shape. */
-const EMPTY = "—";
+const EMPTY = "\u2014";
 
 const LABELS: Record<ContactFieldName, string> = {
   name: "Name",
   email: "Email",
-  organization: "Organization",
+  socials: "Socials",
   services: "Services",
+  budget: "Budget",
+  problem: "Problem to solve",
+  success: "Definition of success",
   message: "Message",
 };
+
+/**
+ * Row order in the email body. Deliberately a separate list from
+ * `CONTACT_FIELDS`: `name` is the headline rather than a row, so this can't be
+ * derived from it. Adding a field means adding it here too - the `LABELS`
+ * record above is exhaustive and will fail the build, but this array won't.
+ */
+const ROW_ORDER = [
+  "email",
+  "socials",
+  "services",
+  "budget",
+  "problem",
+  "success",
+  "message",
+] as const satisfies readonly ContactFieldName[];
 
 function buildHtml(submission: ContactSubmission, receivedAt: string): string {
   const row = (field: ContactFieldName) => {
@@ -62,7 +81,9 @@ function buildHtml(submission: ContactSubmission, receivedAt: string): string {
     const value = raw ? escapeHtml(raw) : EMPTY;
     // Newlines become <br> only after escaping, so a literal "<br>" typed into
     // the message stays literal.
-    const rendered = field === "message" ? value.replace(/\n/g, "<br />") : value;
+    const rendered = MULTILINE_FIELDS.has(field)
+      ? value.replace(/\n/g, "<br />")
+      : value;
 
     return `
       <tr>
@@ -73,34 +94,40 @@ function buildHtml(submission: ContactSubmission, receivedAt: string): string {
 
   return `<!doctype html>
 <html>
-  <body style="margin:0;padding:32px;background:#fffcfa;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <body style="margin:0;padding:32px;background:#fffcfa;font-family:Arial,Helvetica,sans-serif;">
     <div style="max-width:640px;margin:0 auto;">
       <p style="margin:0 0 4px;color:#858ea3;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;">New enquiry</p>
       <h1 style="margin:0 0 28px;color:#1d222e;font-size:26px;font-weight:500;letter-spacing:-0.02em;">${escapeHtml(submission.name)}</h1>
       <table style="width:100%;border-collapse:collapse;">
-        ${(["email", "organization", "services", "message"] as const).map(row).join("")}
+        ${ROW_ORDER.map(row).join("")}
       </table>
       <p style="margin:28px 0 0;color:#858ea3;font-size:13px;">
-        Received ${escapeHtml(receivedAt)} · Reply directly to this email to reach them.
+        Received ${escapeHtml(receivedAt)} \u00b7 Reply directly to this email to reach them.
       </p>
     </div>
   </body>
 </html>`;
 }
 
-/** Plain-text alternative. Needs no escaping — nothing here is parsed as markup. */
+/** Plain-text alternative. Needs no escaping - nothing here is parsed as markup. */
 function buildText(submission: ContactSubmission, receivedAt: string): string {
+  // Single-line fields as a padded column; the multiline ones get their own
+  // labelled block, since they wrap and would break the alignment.
+  const block = (field: ContactFieldName) =>
+    [`${LABELS[field]}:`, submission[field] || EMPTY, ""].join("\n");
+
   return [
     "New enquiry",
     "",
-    `Name:         ${submission.name}`,
-    `Email:        ${submission.email}`,
-    `Organization: ${submission.organization || EMPTY}`,
-    `Services:     ${submission.services || EMPTY}`,
+    `Name:     ${submission.name}`,
+    `Email:    ${submission.email}`,
+    `Socials:  ${submission.socials || EMPTY}`,
+    `Services: ${submission.services || EMPTY}`,
+    `Budget:   ${submission.budget || EMPTY}`,
     "",
-    "Message:",
-    submission.message,
-    "",
+    block("problem"),
+    block("success"),
+    block("message"),
     `Received ${receivedAt}`,
     "Reply directly to this email to reach them.",
   ].join("\n");
@@ -112,7 +139,7 @@ export type SendResult = { ok: true } | { ok: false; reason: string };
  * Send one submission to the site owner.
  *
  * `to` is resolved by the caller from environment/CMS config and never from the
- * submitted form data — otherwise the form would be an open relay.
+ * submitted form data - otherwise the form would be an open relay.
  *
  * Returns a result rather than throwing: a mail outage should degrade to the
  * mailto fallback in the UI, not surface as a 500.
@@ -128,9 +155,11 @@ export async function sendContactEmail(
   }
 
   const receivedAt = new Date().toUTCString();
-  const org = headerSafe(submission.organization);
+  // Budget rather than a company name: it's the thing worth seeing in an inbox
+  // list before the message is even opened.
+  const budget = headerSafe(submission.budget);
   const subject = headerSafe(
-    `New enquiry — ${submission.name}${org ? ` (${org})` : ""}`
+    `New enquiry \u2014 ${submission.name}${budget ? ` (${budget})` : ""}`
   );
 
   try {

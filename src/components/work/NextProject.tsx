@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useTransitionRouter } from "next-view-transitions";
 import Link from "@/components/transition/SmartLink";
 import ScrollCue from "@/components/ui/ScrollCue";
 import {
@@ -15,6 +15,8 @@ import {
 } from "@/lib/color";
 import type { CaseStudyTheme } from "@/lib/color";
 import { beginCaseStudyAdvance } from "@/lib/caseStudyAdvance";
+import { playSound } from "@/lib/soundBus";
+import { coalescedRefresh } from "@/lib/scrollRefresh";
 import type { ProjectRef } from "@/lib/sanity/types";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -58,12 +60,12 @@ gsap.registerPlugin(ScrollTrigger);
  * version measured `getBoundingClientRect().bottom + scrollY`, which a pin
  * makes meaningless, since pinning locks an element's rect to the viewport.
  *
- * The route push still gets a beat of `FLATTEN_CLASS` to flatten the browser's
- * view-transition to a hard cut. That is not hiding a rising panel anymore —
- * there isn't one — it's just avoiding the site's normal clip-path zoom
- * playing on top of what is otherwise a plain continuation of the same
- * scroll gesture. See lib/caseStudyAdvance for that and the scroll lock, which
- * are two separately-timed flags for a reason documented there.
+ * The route push still sets `FLATTEN_CLASS` for a beat. It no longer suppresses
+ * anything visual — there is no page transition left to suppress — but it
+ * remains the marker for "this navigation came from the scroll gesture, not a
+ * click", which the arriving CaseStudy reads to skip its intro. See
+ * lib/caseStudyAdvance for that and the scroll lock, which are two
+ * separately-timed flags for a reason documented there.
  */
 
 /** Gap between the gallery and the label row. Small — not a full section beat. */
@@ -125,12 +127,22 @@ export default function NextProject({
   /** Shown at the left of the chrome: the project being left behind. */
   currentTitle?: string;
 }) {
-  const router = useTransitionRouter();
+  const router = useRouter();
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const coverRef = useRef<HTMLDivElement>(null);
   /** Pin progress, for the cue ring only — the tint writes CSS vars directly. */
   const [cueProgress, setCueProgress] = useState(0);
+  /**
+   * The effect's own `advance`, exposed to the cue's click handler.
+   *
+   * A ref rather than a hoisted callback on purpose: `advance` closes over the
+   * effect-scoped `navigated` latch, and that latch is the only thing
+   * guaranteeing the handoff commits exactly once whether it comes from the
+   * scroll threshold or from a click. Lifting the latch out would risk the
+   * sound playing twice, or two pushes.
+   */
+  const advanceRef = useRef<(() => void) | null>(null);
 
   const href = project.slug ? `/work/${project.slug}` : null;
 
@@ -231,6 +243,15 @@ export default function NextProject({
       if (navigated) return;
       navigated = true;
 
+      // The same clip a card click plays, because it opens the same thing. This
+      // handoff is signalled rather than accidental — the reader scrolls through
+      // a pinned 180% while the cue ring fills and the palette blends — so it
+      // earns the sound the other three entry paths get.
+      //
+      // Below the `navigated` latch, which is what keeps this to one play: the
+      // trigger's onUpdate calls advance() on every frame past ADVANCE_PROGRESS.
+      playSound("projects-click");
+
       // Freezes scroll for the length of the swap and flattens the view
       // transition to a hard cut, then unlocks on a timer that outlives this
       // component — it unmounts *during* the navigation it just started.
@@ -238,6 +259,11 @@ export default function NextProject({
 
       router.push(href);
     };
+
+    // Clicking the cue commits the same handoff the scroll threshold would,
+    // just early — same sound, same lock, same intro-skip marker — so a skip is
+    // indistinguishable from having scrolled the rest of the runway.
+    advanceRef.current = advance;
 
     // How far the cover travels up from its parked position below the stage.
     // Clamped to the cover's own height so it can never overshoot its top edge
@@ -289,10 +315,14 @@ export default function NextProject({
       },
     });
 
-    const raf = requestAnimationFrame(() => ScrollTrigger.refresh());
+    // Deferred past the page reveal, and coalesced with CaseStudyGallery's.
+    // This trigger carries `invalidateOnRefresh`, so a refresh also re-runs its
+    // function-based start/end — each reading layout. Not during the animation.
+    const cancelRefresh = coalescedRefresh();
 
     return () => {
-      cancelAnimationFrame(raf);
+      cancelRefresh();
+      advanceRef.current = null;
       // `true` to revert: without it the pin spacer and the stage's inline
       // position/transform/size survive the kill, so the incoming page would
       // refresh against half-torn-down bookkeeping.
@@ -345,13 +375,13 @@ export default function NextProject({
         >
           <span
             className="text-left font-medium"
-            style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+            style={{ fontFamily: "var(--font-manrope-stack)" }}
           >
             {currentTitle}
           </span>
           <span
             className="text-right lg:text-left font-medium tracking-[0.06em]"
-            style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+            style={{ fontFamily: "var(--font-manrope-stack)" }}
           >
             / Scroll for next section
           </span>
@@ -378,6 +408,8 @@ export default function NextProject({
           <ScrollCue
             progress={cueProgress}
             className="absolute left-6 top-[21.6px] z-20 md:left-[40px] md:top-[39.6px]"
+            onClick={() => advanceRef.current?.()}
+            label={`Skip to ${project.title}`}
           />
         )}
 
@@ -395,7 +427,11 @@ export default function NextProject({
               : REVEAL_SPACE,
           }}
         >
-          <Link href={href} className="block w-full">
+          {/* Same destination as a card on /work — a case study — so it gets the
+              same voice. The scroll-driven `advance()` above plays the same clip
+              at its own commit point; the two paths are mutually exclusive, so
+              reaching the study by either route sounds once. */}
+          <Link href={href} className="block w-full" sound="projects-click">
             {/* Deliberately NOT .headline-line / .fade-in-up. Those classes
                 have no CSS at all — they're bare GSAP selector hooks, and
                 CaseStudy's mount intro scopes them to the <main> this section
@@ -404,7 +440,7 @@ export default function NextProject({
             <h2
               className="font-medium tracking-[-0.04em]"
               style={{
-                fontSize: "clamp(3.25rem, 11vw, 6.75rem)",
+                fontSize: "clamp(3.25rem, 11vw, calc(6.75rem * var(--fluid-scale)))",
                 lineHeight: 0.95,
               }}
             >
@@ -415,13 +451,13 @@ export default function NextProject({
               <div className="mt-[clamp(1.5rem,8vw,6.625rem)]">
                 <span
                   className="block font-medium text-[0.866rem] uppercase opacity-60"
-                  style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+                  style={{ fontFamily: "var(--font-manrope-stack)" }}
                 >
                   Service:
                 </span>
                 <span
-                  className="mt-2 block font-medium text-[clamp(0.9375rem,1.4vw,1.125rem)] uppercase"
-                  style={{ fontFamily: "'Helvetica Neue 65 Medium', sans-serif" }}
+                  className="mt-2 block font-medium text-[clamp(0.9375rem,1.4vw,calc(1.125rem*var(--fluid-scale)))] uppercase"
+                  style={{ fontFamily: "var(--font-manrope-stack)" }}
                 >
                   {serviceLine}
                 </span>

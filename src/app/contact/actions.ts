@@ -27,7 +27,7 @@ const HONEYPOT_FIELD = "website";
 /** Hidden field stamped with Date.now() when the form mounts. */
 const TIMING_FIELD = "t";
 
-/** Anything faster than this is not someone reading five questions. */
+/** Anything faster than this is not someone reading the questions. */
 const MIN_FILL_MS = 2_500;
 /** Older than this and the page has been sitting open, or replayed, for hours. */
 const MAX_FORM_AGE_MS = 2 * 60 * 60 * 1000;

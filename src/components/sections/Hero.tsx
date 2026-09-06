@@ -11,7 +11,7 @@ import TopNav from "@/components/ui/TopNav";
 import { useSiteContent } from "@/components/ContentProvider";
 import { resolveNavAppearance } from "@/lib/nav";
 import { PORTRAIT_FOCUS } from "@/lib/heroPortrait";
-import { useIsDesktop } from "@/lib/useMediaQuery";
+import { coalescedRefresh } from "@/lib/scrollRefresh";
 import { Fragment, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -109,16 +109,13 @@ export default function Hero() {
      with LandingIntro: it fits its centre panel onto the rect this paints, so
      any drift between the two desyncs the seam at the handoff.
 
-     Starts `false` so SSR and the first client render match — `lg` is the
-     layout the markup's base classes describe.
-
-     The shared hook rather than a local matchMedia subscription: it owns the
-     same DESKTOP_QUERY and already defers its ScrollTrigger.refresh() by a
-     frame. The hand-rolled copy that used to live here refreshed inline, right
-     after its own setState, which put a full re-measure of every pinned trigger
-     inside the commit that reshapes the page at the breakpoint. Nothing here
-     needs the refresh to be synchronous — `isDesktop` only picks props below. */
-  const isDesktop = useIsDesktop();
+     Note this component no longer subscribes to the breakpoint at all. It used
+     to hold a `useIsDesktop()` whose only job was picking the portrait's
+     `fit`/`focus` props, which meant the fork was decided in React — one commit
+     late, because that hook opens at `false` on a hydrating render. The fork is
+     CSS now (`fit="responsive-hero"`, and `--liquid-object-position` in
+     globals.css), so it is right in the first painted frame and there is
+     nothing left here to re-render on. */
 
   useLayoutEffect(() => {
     let mounted = true;
@@ -200,12 +197,12 @@ export default function Hero() {
       };
       gsap.ticker.add(marqueeTicker);
 
-      // The hero's animated entrance is only meaningful once: on the very first
-      // visit, right after the landing-intro overlay lifts. On any other mount
-      // (a normal navigation or reload) the hero must stay VISIBLE so the native
-      // view-transition captures full content in the incoming-page snapshot and
-      // the clip-reveal actually shows it — matching the work page. If we hid it
-      // here (in a pre-paint layout effect), work→home would reveal an empty page.
+      // The hero's full animated entrance is only meaningful once: on the very
+      // first visit, right after the landing-intro overlay lifts. On any other
+      // mount (a normal navigation or reload) the hero must stay VISIBLE — this
+      // is a pre-paint layout effect, so hiding here would make work→home paint
+      // an empty page before anything could animate it back. The soft-nav
+      // entrance is a short fade applied *after* the settle, further down.
       //
       // This asks LandingIntro's own predicate rather than re-deriving the rule:
       // the two must agree exactly, because pre-hiding here while the intro
@@ -335,9 +332,49 @@ export default function Hero() {
         };
         window.addEventListener(LANDING_INTRO_DONE_EVENT, handleReveal);
       } else {
-        // Normal nav / reload / reduced motion: content is already visible, so
-        // the view-transition reveal is the entrance. Snap to the final state.
+        // Normal nav / reload / reduced motion. Content is already visible, so
+        // this settles the final state; the short fade below is the entrance.
         revealHero(true);
+
+        /* The page transition used to be this page's entrance on a soft nav —
+           the clip-path reveal played over already-final content. With route
+           changes now an instant swap, arriving from /work would simply pop.
+
+           Deliberately NOT the intro timeline above: that one animates *from*
+           hidden states only set on the first-visit path, and lifts elements to
+           zIndex 12001 to clear the landing-intro stage. Running it here would
+           tween from unset values and leave the hero above the custom cursor.
+           A short, self-contained fade on the settled content instead.
+
+           If a new page transition supplies its own entrance, delete this block
+           — it is the one thing here that would double up. */
+        if (!reduceMotion) {
+          gsap.from(
+            [
+              navRef.current,
+              introWrapRef.current,
+              pillRef.current,
+              marqueeWrapRef.current,
+            ].filter(Boolean),
+            {
+              y: 18,
+              /* Deliberately no `opacity: 0`. `gsap.from` writes its start
+                 values synchronously on creation, and this runs in a pre-paint
+                 layout effect — so fading from transparent meant the nav,
+                 heading, pill and marquee were all blank in the FIRST painted
+                 frame of the page. Together with the portrait (not in this
+                 tween) that read as "everything vanished except a huge image".
+                 A pure rise still reads as an arrival and can never blank the
+                 page, however long the frame takes to land. */
+              duration: 0.45,
+              ease: "power2.out",
+              stagger: 0.05,
+              // Cleared so the inline styles never outlive the tween — the
+              // scroll parallax below writes `y` on these same nodes.
+              clearProps: "transform",
+            }
+          );
+        }
       }
 
       /* ── Scroll-linked marquee skew ───────────────── */
@@ -369,16 +406,26 @@ export default function Hero() {
         },
       });
 
+      // The marquee's rise is sized against the hero's own height so it reads
+      // the same on a 700px phone and a 1000px desktop. The function value is
+      // re-evaluated on every refresh via `invalidateOnRefresh` above.
+      const heroH = () => sectionRef.current?.offsetHeight ?? window.innerHeight;
+
       parallaxTl
         .to(portraitRef.current, { y: 120, ease: "none" }, 0) // Portrait scrolls slightly slower (sinks a bit but gets clipped cleanly)
-        .to(marqueeWrapRef.current, { y: -80, ease: "none" }, 0) // Marquee scrolls faster
+        .to(marqueeWrapRef.current, { y: () => -heroH() * 0.2, ease: "none" }, 0) // Marquee rises with the intro text and pill, fast enough to be seen
         .to(introWrapRef.current, { y: -40, ease: "none" }, 0) // Intro text scrolls slightly faster
         .to(pillRef.current, { y: -60, ease: "none" }, 0); // Pill scrolls faster
 
       /* ── Re-sync trigger geometry once webfonts settle ─── */
       if (typeof document !== "undefined" && document.fonts?.ready) {
         document.fonts.ready.then(() => {
-          if (mounted) ScrollTrigger.refresh();
+          // On a warm navigation this promise is already settled, so it lands as
+          // a microtask inside the page reveal. The parallax below carries
+          // `invalidateOnRefresh`, making the refresh a re-measure plus a re-run
+          // of every function-based start/end — the reflow batch the reveal must
+          // not share a frame with.
+          if (mounted) coalescedRefresh();
         });
       }
 
@@ -429,14 +476,20 @@ export default function Hero() {
           <div
             ref={portraitRef}
             {...{ [HERO_PORTRAIT_ATTR]: "" }}
-            className="transition-hero-image absolute left-1/2 -translate-x-1/2 bottom-0 w-full lg:max-w-[750px] h-full z-10 pointer-events-none"
+            className="transition-hero-image absolute left-1/2 -translate-x-1/2 bottom-0 w-full lg:max-w-[calc(750px*var(--fluid-scale))] h-full z-10 pointer-events-none"
           >
+            {/* The cover/contain fork is CSS, not React. Deriving it from
+                `useIsDesktop()` meant one commit at its by-construction `false`
+                — a scaled-up, focal-cropped portrait — before it corrected,
+                which was visible on every soft navigation back to this page.
+                `focus` is now passed unconditionally; the mode applies it on
+                the cover side only. */}
             <LiquidImage
               src={portraitSrc}
               alt={name}
-              fit={isDesktop ? "contain" : "cover"}
-              focus={isDesktop ? undefined : PORTRAIT_FOCUS}
-              sizes="(max-width: 1024px) 100vw, 750px"
+              fit="responsive-hero"
+              focus={PORTRAIT_FOCUS}
+              sizes="(max-width: 1024px) 100vw, (max-width: 1440px) 750px, 975px"
               className="w-full h-full pointer-events-auto"
             />
           </div>
@@ -461,7 +514,7 @@ export default function Hero() {
                    phones the floor is what actually renders and raising vw
                    alone would do nothing there. The 240px ceiling is
                    untouched, so wide desktop is unchanged. */
-                style={{ fontSize: "clamp(104px, 24.7vw, 240px)" }}
+                style={{ fontSize: "clamp(104px, 24.7vw, calc(240px * var(--fluid-scale)))" }}
               >
                 <div className="flex items-center shrink-0">
                   <span>{marqueeText}</span>
@@ -517,7 +570,7 @@ export default function Hero() {
           {/* ── Intro Text Block ─────────────────────── */}
           <div
             ref={introWrapRef}
-            className="absolute z-30 left-0 bottom-8 sm:bottom-10 px-6 sm:px-8 lg:px-0 lg:bottom-auto lg:left-[calc(50%+27vw)] lg:top-[38%] lg:w-[22vw] lg:max-w-[300px] mix-blend-difference lg:mix-blend-normal"
+            className="absolute z-30 left-0 bottom-8 sm:bottom-10 px-6 sm:px-8 lg:px-0 lg:bottom-auto lg:left-[calc(50%+min(27vw,calc(375px*var(--fluid-scale))+14px))] lg:top-[38%] lg:w-[22vw] lg:max-w-[calc(300px*var(--fluid-scale))] mix-blend-difference lg:mix-blend-normal"
           >
             <div ref={introRef}>
               <h1
