@@ -410,8 +410,9 @@ export default function CaseStudyGallery({
         onPointerCancel={endDrag}
         className="fade-in-up mt-[clamp(2.5rem,5vw,4rem)] flex snap-x snap-mandatory gap-[clamp(1rem,2vw,1.75rem)] overflow-x-auto pb-6 lg:hidden"
         style={{
-          // Vertical page scroll must still work over the track.
-          touchAction: "pan-y",
+          // Claim the horizontal axis for native touch scroll; vertical page
+          // scroll still works once a touch moves off this axis.
+          touchAction: "pan-x",
           cursor: dragging ? "grabbing" : "grab",
           scrollbarWidth: "none",
           // Bleed to the viewport edges, like the reference, while keeping the

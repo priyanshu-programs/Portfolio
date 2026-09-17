@@ -16,10 +16,10 @@ export default function SoundProvider() {
 
   useEffect(() => {
     /* The eager preload must not land inside the landing intro. That sequence is
-       the heaviest moment on the site — GSAP Flip, the OGL canvas and the shader
-       button all contend for the main thread — and four extra fetches there buy
-       nothing, because the visitor cannot click anything until it finishes.
-       Elsewhere the idle callback alone is enough. */
+       the heaviest moment on the site — GSAP Flip and the shader button both
+       contend for the main thread — and four extra fetches there buy nothing,
+       because the visitor cannot click anything until it finishes. Elsewhere
+       the idle callback alone is enough. */
     let deferPreloadUntil: Promise<void> | undefined;
 
     if (pathname === "/") {

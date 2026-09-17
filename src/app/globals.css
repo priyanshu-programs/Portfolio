@@ -202,8 +202,49 @@ html.lenis body {
   pointer-events: none;
 }
 
-/* ── Hide Original Cursor ───────────────────────────────── */
+/* ── Custom Arrow Cursor ──────────────────────── */
+
+/* Drawn by the compositor, not by JS. This replaced a `mousemove`-driven
+   <div> (FollowCursor) that tweened toward the pointer with GSAP and carried
+   `mix-blend-mode: difference` — so it cost a DOM walk plus two tweens per
+   move, and always trailed ~0.2s behind the real pointer. A url() cursor has
+   none of that and is drawn at the true pointer position.
+
+   `4 3` is the hotspot: the pixel in the image treated as the click point. It
+   tracks the arrow's tip in cursor-arrow.svg — if the artwork moves, this
+   moves with it, or clicks land offset from where the arrow appears. The svg's
+   viewBox starts at -1 -1 to give the white outline room to draw without
+   clipping at the canvas edge, which shifts every path coordinate +1px in the
+   rendered image; the tip sits at ~(3.6, 2.1) in path space, so ~(4.6, 3.1)
+   here.
+
+   The `, auto` fallback is required; a url() cursor with no keyword fallback
+   is invalid and the whole declaration is dropped.
+
+   `*` and `!important`, both load-bearing — the site shows ONE arrow, always.
+   `:root` alone only offers a value to inherit, which is the weakest source of
+   a computed value: the UA stylesheet's `cursor: pointer` on `a[href]` and
+   `button` beat it, so every link and button reverted to the hand. `*` sets the
+   property on each element instead of relying on inheritance, and `!important`
+   is what beats the two inline `style={{ cursor }}` declarations
+   (liquid-metal-button, CaseStudyGallery) that no selector can outrank.
+
+   Accepted cost of being this absolute: no text I-beam in inputs, no
+   grab/grabbing on the gallery strip (free in practice — it's `lg:hidden`, so
+   it only exists where there is no cursor), and no `default` on disabled
+   buttons. Elements that need a different cursor must now also say
+   `!important`, as the case-study cover does for ViewLiveCursor. */
 * {
+  cursor: url("/cursor-arrow.svg") 4 3, auto !important;
+}
+
+/* The one deliberate exception. The case-study cover swaps the arrow for
+   ViewLiveCursor's own rendered cursor, so it must hide the native one — and
+   since the rule above is `!important`, Tailwind's plain `cursor-none` on that
+   container can no longer win on its own. Scoped to the class rather than set
+   inline so the override lives next to the rule it is overriding. */
+.cursor-none,
+.cursor-none * {
   cursor: none !important;
 }
 
@@ -577,16 +618,16 @@ body.is-transitioning {
   }
 }
 
-/* ── LiquidImage `responsive-hero` object-position ────────────────────────
-   The focal anchor for LiquidImage's fallback <img> under `fit="responsive-hero"`
-   (the hero portrait). It lives in CSS because the fork has to be right in the
-   FIRST painted frame: deriving it from `useIsDesktop()` gave one commit at that
-   hook's by-construction `false`, which painted the desktop hero with the mobile
-   cover-crop on every soft navigation to `/`.
+/* ── Hero portrait responsive object-position ──────────────────────────────
+   The focal anchor for the hero portrait's <Image> under the
+   `object-cover lg:object-contain` responsive fork. It lives in CSS because the
+   fork has to be right in the FIRST painted frame: deriving it from
+   `useIsDesktop()` gave one commit at that hook's by-construction `false`,
+   which painted the desktop hero with the mobile cover-crop on every soft
+   navigation to `/`.
 
-   ── THREE COPIES OF ONE RULE — change together ───────────────────────────
+   ── TWO COPIES OF ONE RULE — change together ──────────────────────────────
    The `1024px` here mirrors `DESKTOP_QUERY` (src/lib/useMediaQuery.ts), which
-   `resolveFit()` in LiquidImage.tsx reads for the WebGL path and
    `isPortraitCovering()` (src/lib/heroPortrait.ts) reads for the intro handoff.
    The `27%` is `PORTRAIT_FOCUS.x` (src/lib/heroPortrait.ts) — a solved value,
    not an eyeballed one; see that constant's comment before changing it.
@@ -595,14 +636,14 @@ body.is-transitioning {
    stands the figure on the section's floor. */
 :root {
   /* Mobile: cover, cropped around the face. */
-  --liquid-object-position: 27% 100%;
+  --hero-portrait-object-position: 27% 100%;
 }
 
 @media (min-width: 1024px) {
   :root {
     /* Desktop: contain. The art letterboxes, so there is no crop to steer and
        an off-centre anchor would only slide it sideways in its box. */
-    --liquid-object-position: 50% 100%;
+    --hero-portrait-object-position: 50% 100%;
   }
 }
 
@@ -655,7 +696,7 @@ body.is-transitioning {
    The stage above is hidden in static CSS and only revealed by
    `gsap.set(stage, { autoAlpha: 1 })` inside LandingIntro's effect. That reveal
    cannot happen until React has hydrated and GSAP, Flip, ScrollTrigger,
-   CustomEase, Lenis and OGL have all loaded — and the browser happily paints
+   CustomEase and Lenis have all loaded — and the browser happily paints
    the finished white homepage in the gap. The result was: white page, then dark
    preloader, then the page again.
 
@@ -907,10 +948,10 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
 /* Zero-paint measurement target for the final fit.
    Flip.fit needs a real, measurable element to fit onto — there is no API for
    handing it a synthetic rect. The hero portrait's wrapper is the wrong target
-   because at `lg` LiquidImage paints `object-contain object-bottom` inside it,
-   so the picture is letterboxed narrower than its box (up to 35% at tablet
-   widths). (Below `lg` the portrait covers instead, and the painted rect and
-   the box coincide — see getPaintedPortraitRect.)
+   because at `lg` the hero's <Image> paints `object-contain object-bottom`
+   inside it, so the picture is letterboxed narrower than its box (up to 35% at
+   tablet widths). (Below `lg` the portrait covers instead, and the painted rect
+   and the box coincide — see getPaintedPortraitRect.)
    This proxy is positioned over the *painted* rect, so the centre panel lands
    on the picture rather than the box.
 
@@ -1008,9 +1049,10 @@ html.intro-armed .landing-intro-panel:nth-child(5) {
    Rendered only by RouteLoadingOverlay, for the pre-transition wait on a cold
    navigation.
 
-   z-index sits above FollowCursor (10050) so its trail isn't drawn over the
-   bar, and below .landing-intro-stage (11000), which owns the screen
-   outright while it runs.
+   z-index sits below .landing-intro-stage (11000), which owns the screen
+   outright while it runs. (It also used to sit above the JS cursor dot at
+   10050, so the dot's trail wasn't drawn over the bar; that cursor is now a
+   native `cursor: url(...)` and no longer participates in stacking.)
 
    Deliberately NOT scroll-locked — no `is-transitioning` here. That class
    carries `pointer-events: none` on the body, which is the exact freeze this

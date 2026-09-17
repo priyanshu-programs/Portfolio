@@ -42,8 +42,8 @@ export const DESKTOP_QUERY = "(min-width: 1024px)";
  *
  * Callers on the hydration path must still treat `false` as "narrow, or not yet
  * measured". Anything that must be correct in the first painted frame of a HARD
- * load belongs in CSS, not here — see `--liquid-object-position` in globals.css
- * and `LiquidImageFitMode` for the shape that solves.
+ * load belongs in CSS, not here — see `--hero-portrait-object-position` in
+ * globals.css for the shape that solves.
  */
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(

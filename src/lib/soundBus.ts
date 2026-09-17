@@ -182,8 +182,9 @@ export function playSound(name: SoundName): void {
   if (reduceMq?.matches) return;
 
   /* Touch devices synthesize a `mouseenter` immediately before every tap, which
-     would fire hover-tick and then submit as one double-noise. Same query and
-     same reasoning as the coarse-pointer bail in FollowCursor.tsx. */
+     would fire hover-tick and then submit as one double-noise. Hover-driven
+     affordances have no meaning without a hovering pointer, so gate on the
+     same `(pointer: coarse)` query. */
   if (spec.pointerGated && coarseMq?.matches) return;
 
   /* Leading-edge throttle, deliberately not a debounce: the first tick has to be
