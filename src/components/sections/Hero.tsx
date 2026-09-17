@@ -6,11 +6,10 @@ import {
   shouldPlayLandingIntro,
 } from "@/components/transition/LandingIntro";
 import Link from "@/components/transition/SmartLink";
-import LiquidImage from "@/components/ui/LiquidImage";
+import Image from "next/image";
 import TopNav from "@/components/ui/TopNav";
 import { useSiteContent } from "@/components/ContentProvider";
 import { resolveNavAppearance } from "@/lib/nav";
-import { PORTRAIT_FOCUS } from "@/lib/heroPortrait";
 import { coalescedRefresh } from "@/lib/scrollRefresh";
 import { Fragment, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
@@ -113,8 +112,8 @@ export default function Hero() {
      to hold a `useIsDesktop()` whose only job was picking the portrait's
      `fit`/`focus` props, which meant the fork was decided in React — one commit
      late, because that hook opens at `false` on a hydrating render. The fork is
-     CSS now (`fit="responsive-hero"`, and `--liquid-object-position` in
-     globals.css), so it is right in the first painted frame and there is
+     CSS now (`object-cover lg:object-contain`, and `--hero-portrait-object-position`
+     in globals.css), so it is right in the first painted frame and there is
      nothing left here to re-render on. */
 
   useLayoutEffect(() => {
@@ -310,10 +309,10 @@ export default function Hero() {
         }
 
         // The elevated zIndex above was only needed to stay above the
-        // landing-intro stage during the handoff. Left in place, it's an
-        // inline style that permanently outranks FollowCursor's canvas
-        // (zIndex 10050), leaving the custom cursor invisible under the pill
-        // for the rest of the session. Clear it once the handoff has played.
+        // landing-intro stage during the handoff. Clear it once the handoff
+        // has played rather than leaving a permanent inline stacking override
+        // on the nav. (It used to also hide the JS cursor dot at zIndex 10050
+        // under the pill; that cursor is native now and doesn't stack.)
         tl.set(
           [
             navRef.current,
@@ -481,16 +480,16 @@ export default function Hero() {
             {/* The cover/contain fork is CSS, not React. Deriving it from
                 `useIsDesktop()` meant one commit at its by-construction `false`
                 — a scaled-up, focal-cropped portrait — before it corrected,
-                which was visible on every soft navigation back to this page.
-                `focus` is now passed unconditionally; the mode applies it on
-                the cover side only. */}
-            <LiquidImage
+                which was visible on every soft navigation back to this page. */}
+            <Image
               src={portraitSrc}
               alt={name}
-              fit="responsive-hero"
-              focus={PORTRAIT_FOCUS}
+              fill
               sizes="(max-width: 1024px) 100vw, (max-width: 1440px) 750px, 975px"
-              className="w-full h-full pointer-events-auto"
+              className="w-full h-full pointer-events-auto object-cover lg:object-contain"
+              style={{
+                objectPosition: "var(--hero-portrait-object-position, 50% 100%)",
+              }}
             />
           </div>
 

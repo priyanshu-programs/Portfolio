@@ -37,7 +37,7 @@ export const INTRO_ARMED_CLASS = "intro-armed";
  * How long the cover may survive without JS taking ownership of it.
  *
  * The safety escape hatch. Everything after this script — the Next bundle,
- * GSAP, Lenis, OGL, LandingIntro's own mount — can fail, 404, or throw, and
+ * GSAP, Lenis, LandingIntro's own mount — can fail, 404, or throw, and
  * none of it is required for the page to become usable: this timeout, set by
  * the same blocking script that raised the cover, always fires and always
  * lowers it. Chosen longer than the point where LandingIntro's effect normally

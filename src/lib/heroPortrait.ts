@@ -1,6 +1,6 @@
 /**
- * Geometry shared between the hero portrait and the landing intro that resolves
- * into it.
+ * Geometry shared between the hero portrait's image and the landing intro that
+ * resolves into it.
  *
  * It lives here rather than in either component because both need it and they
  * cannot import from each other: Hero already imports LandingIntro's constants,

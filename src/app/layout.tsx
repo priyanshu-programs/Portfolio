@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Manrope, Permanent_Marker, Caveat } from "next/font/google";
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
-import FollowCursor from "@/components/ui/FollowCursor";
 import FloatingMenu from "@/components/ui/FloatingMenu";
 import RouteLoadingOverlay from "@/components/transition/RouteLoadingOverlay";
 import SoundProvider from "@/components/audio/SoundProvider";
@@ -220,7 +219,6 @@ export default async function RootLayout({
             deletion of route-owned nodes.
           */}
           <div id="app-overlay-root" aria-hidden="true" />
-          <FollowCursor zIndex={10050} />
           <FloatingMenu />
           <RouteLoadingOverlay />
           {/* Renders nothing; owns the interface-sound engine's lifecycle. */}

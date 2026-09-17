@@ -13,11 +13,11 @@ import { useMemo } from "react";
  * there is nothing to call back into. An iframe is also one element with no
  * cleanup effect, and trivially removable.
  *
- * Known cosmetic limitation: globals.css hides the native cursor everywhere
- * (`* { cursor: none !important }`) and FollowCursor can't track pointer events
- * across an iframe boundary, so there is no visible cursor over the scheduler.
- * The fix would be an overlay, which would swallow the clicks that are the whole
- * point. Accepted.
+ * The scheduler used to render with no visible cursor at all: globals.css hid
+ * the native one everywhere (`* { cursor: none !important }`) and the custom
+ * JS cursor could not track pointer events across an iframe boundary. Both
+ * sides of that are gone — the cursor is now a plain `cursor: url(...)` on
+ * :root, which the iframe's own document resolves normally.
  */
 
 type CalendlyEmbedProps = {

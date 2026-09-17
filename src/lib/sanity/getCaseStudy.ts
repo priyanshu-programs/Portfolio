@@ -6,7 +6,7 @@ import { buildImageUrl } from "./image";
 import type { CaseStudyContent, GalleryItem, ProjectRef } from "./types";
 
 /**
- * Tighter than getSiteContent's 8s, deliberately.
+ * Tighter than getSiteContent's 8s, deliberately — in production.
  *
  * `dynamicParams` is true, so a slug published since the last deploy renders on
  * demand — and because that render happens inside an already-started view
@@ -14,14 +14,26 @@ import type { CaseStudyContent, GalleryItem, ProjectRef } from "./types";
  * whole duration. Untimed, that wait was unbounded (measured at 8.5s against a
  * cold miss). A Sanity CDN query that hasn't answered in 2.5s is not going to
  * rescue the navigation; failing through to notFound() is the better outcome.
+ *
+ * That budget assumes `useCdn: true` (see client.ts), which only holds in
+ * production — `next dev` reads directly from api.sanity.io, uncached and
+ * slower, with no reader mid-view-transition to protect. Without the extra
+ * room, routine dev-mode latency aborts the fetch and silently 404s a case
+ * study that exists fine in Sanity.
  */
-const CASE_STUDY_FETCH_TIMEOUT_MS = 2_500;
+const CASE_STUDY_FETCH_TIMEOUT_MS =
+  process.env.NODE_ENV === "production" ? 2_500 : 8_000;
 
 /**
  * Server-only fetch of a single case study, mirroring getSiteContent: images
- * resolve to CDN URL strings, failures return null so the route can 404 rather
- * than throw, and the request carries the same `site-content` cache tag so the
- * existing Sanity webhook (/api/revalidate) already invalidates case studies.
+ * resolve to CDN URL strings and the request carries the same `site-content`
+ * cache tag, so the existing Sanity webhook (/api/revalidate) already
+ * invalidates case studies.
+ *
+ * Unlike getSiteContent it does *not* swallow failures. That function's null
+ * degrades to each consumer's hardcoded copy; this one's null becomes
+ * notFound(), which a build will cache. Null here therefore means only "no
+ * such published project"; a fetch failure throws. See the catch below.
  *
  * Deliberately separate from siteContentQuery — that query runs in the root
  * layout on every route, and full project bodies there would bloat every page.
@@ -43,11 +55,34 @@ export const getCaseStudy = cache(
         }
       );
 
-      if (!raw?.project) return null;
+      if (!raw?.project) {
+        // The only null that means "this project does not exist". Logged
+        // because it is otherwise the one 404 path that leaves no trace: a
+        // slug filtered out by `visible: false` / `comingSoon: true` looks
+        // identical to a typo'd URL from the console.
+        console.warn(
+          `[sanity] getCaseStudy(${slug}): no published project matched ` +
+            `(check the document's \`visible\` and \`comingSoon\` flags).`
+        );
+        return null;
+      }
       return normalize(raw, slug);
     } catch (error) {
+      /**
+       * Deliberately rethrown rather than folded into `return null`.
+       *
+       * The route turns null into notFound(). During a build or an ISR
+       * revalidation that 404 is written to disk and served from then on, so
+       * swallowing a transient fetch failure here permanently caches a 404 for
+       * a project that exists — which is exactly how a prerendered
+       * `slipped out of frame` shell once shipped for a live case study.
+       *
+       * Throwing keeps the failure uncached: the render errors, nothing is
+       * committed to the cache, and the next request retries. An error page
+       * for a project that exists is recoverable; a cached 404 is not.
+       */
       console.error(`[sanity] getCaseStudy(${slug}) failed:`, error);
-      return null;
+      throw error;
     }
   }
 );

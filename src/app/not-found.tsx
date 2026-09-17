@@ -11,7 +11,7 @@ const DEFAULT_NAME = "Priyanshu Roy";
  * Root 404. Catches unknown routes and missing case-study slugs alike — the
  * latter via `notFound()` in `work/[slug]/page.tsx`.
  *
- * Rendered inside the root layout, so Lenis, FollowCursor, FloatingMenu and
+ * Rendered inside the root layout, so Lenis, FloatingMenu and
  * RouteLoadingOverlay all mount for free. Only SiteFooter needs suppressing,
  * which NotFoundStage handles by raising `html.is-404`.
  *

@@ -8,6 +8,23 @@ const nextConfig: NextConfig = {
   images: {
     // Serve AVIF/WebP to browsers that support them for every next/image usage.
     formats: ["image/avif", "image/webp"],
+    /**
+     * Next 16 refuses to optimize an upstream image whose hostname resolves to
+     * an address it considers private, and it rejects when *any* resolved
+     * address matches — not just the one it would connect to.
+     *
+     * On a NAT64/DNS64 network (this one), `cdn.sanity.io` resolves to both
+     * 35.190.90.94 and 64:ff9b::23be:5a5e. That IPv6 address is the well-known
+     * NAT64 prefix wrapping the very same public IPv4 host, but Next has no
+     * special case for 64:ff9b::/96 and flags it private, so every Sanity image
+     * 400s locally with `"url" parameter is not allowed`. Both families are
+     * reachable; only the classification is wrong.
+     *
+     * Scoped to development deliberately. In production this flag would disable
+     * a real SSRF guard, and it is not needed there: Vercel's resolver returns
+     * no NAT64 record, and the deployed site optimizes these same images fine.
+     */
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
     // Allow the work-popout thumbnails to be optimized through next/image.
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },

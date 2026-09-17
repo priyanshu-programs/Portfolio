@@ -39,7 +39,7 @@ export default function Footer() {
       <div className="px-4 sm:px-6 lg:px-[26px] pt-[26px] shrink-0">
         <div className="bg-ink text-white rounded-sm w-full px-6 md:px-10 py-6 md:py-7 lg:h-[50vh] flex flex-col justify-between font-[150]">
           {/* Top section: Nav and Socials aligned to the left */}
-          <div className="flex gap-x-20 sm:gap-x-32 text-[22px]">
+          <div className="flex gap-x-10 sm:gap-x-32 text-[clamp(1.0625rem,4.7vw,22px)]">
             {/* Column 1: nav */}
             <ul className="space-y-1">
               {navLinks.map((l) => (
@@ -69,16 +69,16 @@ export default function Footer() {
           </div>
 
           {/* Bottom section: Timezone on the left, email on the right */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-16 gap-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-10 sm:mt-16 gap-y-6">
             <div className="text-left">
               <p className="text-[18px] text-muted uppercase tracking-wider mb-3">
                 Timezone
               </p>
-              <p className="text-[22px]">{timezone}</p>
+              <p className="text-[clamp(1.0625rem,4.7vw,22px)]">{timezone}</p>
             </div>
             <a
               href={`mailto:${email}`}
-              className="text-[22px] hover:opacity-70 transition-opacity"
+              className="text-[clamp(0.875rem,4.6vw,22px)] hover:opacity-70 transition-opacity"
             >
               {email}
             </a>
@@ -88,9 +88,25 @@ export default function Footer() {
 
       {/* Script name — grows to fill remaining height. Horizontal padding
           matches the dark card wrapper above so the signature fits between
-          the card's left/right margins at every viewport width. */}
+          the card's left/right margins at every viewport width.
+
+          The font size has NO floor, deliberately. "Priyanshu Roy" in Citadel
+          Script is 5.037em wide (exact: GPOS kerning applies to none of its
+          pairs), so any floor F clips once the viewport drops below
+          F*5.037 + padding — which is what a 112px floor paired with a 24vw
+          term did here. 24vw also demanded 121% of the viewport on its own,
+          so the name was cut at BOTH ends at every width up to ~1322px.
+
+          17.8vw is set by the narrowest viewport, where the fixed padding is
+          the largest fraction of the width: 320px allows 17.868%. The 252px
+          ceiling is untouched and takes over at 1416px, so everything at and
+          above 1440px renders exactly as before.
+
+          Note this is the opposite of the hero marquee (Hero.tsx), whose
+          raised floor is correct precisely because that text is MEANT to run
+          past the edge. This one has to fit. */}
       <div className="relative flex-1 min-h-[320px] no-overflow px-4 sm:px-6 lg:px-[26px]">
-        <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 whitespace-nowrap font-script leading-none select-none text-ink text-[clamp(112px,24vw,calc(252px*var(--fluid-scale)))]">
+        <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 whitespace-nowrap font-script leading-none select-none text-ink text-[clamp(0px,17.8vw,calc(252px*var(--fluid-scale)))]">
           {name}
         </span>
       </div>

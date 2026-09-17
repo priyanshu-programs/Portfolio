@@ -8,10 +8,6 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef } from "react";
 import { PORTRAIT_FOCUS, isPortraitCovering } from "@/lib/heroPortrait";
 import { useSiteContent } from "@/components/ContentProvider";
-import {
-  LIQUID_IMAGE_READY_ATTR,
-  LIQUID_IMAGE_READY_EVENT,
-} from "@/components/ui/LiquidImage";
 import { INTRO_ARMED_CLASS } from "@/lib/landingIntroArm";
 
 gsap.registerPlugin(ScrollTrigger, Flip, CustomEase);
@@ -58,12 +54,10 @@ const SETTLE = CustomEase.create("intro-settle", "0.16, 1, 0.3, 1");
 const RISE = CustomEase.create("intro-rise", "0.33, 0, 0.1, 1");
 
 /* ── Fitting the centre panel onto the painted portrait ───────────────────
-   The hero portrait's wrapper is a plain box, but LiquidImage paints the
-   picture `object-contain object-bottom` inside it — as an <img> in the
-   fallback, and identically in WebGL (its resize() computes the same contain
-   mapping and the shader bottom-aligns). So one contain computation is correct
-   for both render paths, and the canvas — which always fills the wrapper —
-   never needs measuring directly. */
+   The hero portrait's wrapper is a plain box, but the <Image> inside it paints
+   `object-contain object-bottom` (or `object-cover` below `lg`) rather than
+   filling the box, so the panel has to be fitted onto that painted rect, not
+   the wrapper itself. */
 
 /** Aspect ratio of the portrait art, used only if the DOM can't supply one.
  *  The local asset (hero-portrait.webp) is 1086×1448 and the optimized file
@@ -86,7 +80,7 @@ const readPortraitAspect = (wrapper: HTMLElement): number => {
  * differently-shaped portrait from the CMS, or an unusually proportioned
  * wrapper, flips it.
  *
- * ── MUST TRACK LiquidImage ───────────────────────────────────────────────
+ * ── MUST TRACK THE HERO PORTRAIT'S OBJECT-FIT ────────────────────────────
  * The panel is fitted onto this rect, so it has to describe where the picture
  * genuinely lands.
  *
@@ -105,8 +99,8 @@ const readPortraitAspect = (wrapper: HTMLElement): number => {
  * Returning the larger rect is safe because nothing has to contain it: the
  * stage clips it at the viewport edges during the flight
  * (`.landing-intro-stage { overflow: hidden }`), and the portrait wrapper clips
- * it after the swap (LiquidImage's root is `overflow-hidden`). The result is
- * the same pixels the hero paints.
+ * it after the swap (its root is `overflow-hidden`). The result is the same
+ * pixels the hero paints.
  */
 const getPaintedPortraitRect = (wrapper: HTMLElement) => {
   const box = wrapper.getBoundingClientRect();
@@ -121,8 +115,8 @@ const getPaintedPortraitRect = (wrapper: HTMLElement) => {
       height = box.width / aspect;
     }
 
-    /* Place the overflow the way the shader's uAnchor does, so the panel lands
-       on the same crop the hero paints. `visible` is the fraction of the art
+    /* Place the overflow the way the hero's object-position anchor does, so the
+       panel lands on the same crop the hero paints. `visible` is the fraction of the art
        the box shows on each axis; the anchor distributes the rest. A centred
        placement would be wrong here — the whole point of the focal x is that
        the crop is asymmetric (more off the empty shoulder than off the face). */
@@ -325,23 +319,16 @@ const DECODE_TIMEOUT_MS = 1200;
 const PORTRAIT_READY_TIMEOUT_MS = 2000;
 
 /**
- * Resolves once the hero portrait has real pixels on screen.
- *
- * The portrait renders through LiquidImage, which hides its fallback <img> as
- * soon as the WebGL context is *constructed* — but the canvas stays transparent
- * until its texture (a separate fetch, proxied for Sanity URLs) loads and a
- * frame is drawn. Revealing on mount alone can therefore hand off to an empty
- * box. This waits for the paint, and never longer than the timeout.
+ * Resolves once the hero portrait's <img> has actually loaded (or failed),
+ * never longer than the timeout. Revealing on mount alone can hand off to an
+ * empty box if the image is still fetching/decoding.
  */
 const waitForPortraitPaint = (wrapper: HTMLElement, timeoutMs: number) =>
   new Promise<void>((resolve) => {
-    const target =
-      wrapper.querySelector<HTMLElement>(`[${LIQUID_IMAGE_READY_ATTR}]`) ??
-      wrapper.querySelector<HTMLElement>("[role='img']");
+    const img = wrapper.querySelector<HTMLImageElement>("img");
 
-    // Already painted (attribute set before we started listening), or there is
-    // no LiquidImage here at all — nothing to wait for either way.
-    if (!target || target.hasAttribute(LIQUID_IMAGE_READY_ATTR)) {
+    // Already loaded, or there is no image here at all — nothing to wait for.
+    if (!img || img.complete) {
       resolve();
       return;
     }
@@ -351,12 +338,14 @@ const waitForPortraitPaint = (wrapper: HTMLElement, timeoutMs: number) =>
       if (done) return;
       done = true;
       clearTimeout(timer);
-      target.removeEventListener(LIQUID_IMAGE_READY_EVENT, finish);
+      img.removeEventListener("load", finish);
+      img.removeEventListener("error", finish);
       resolve();
     };
 
     const timer = setTimeout(finish, timeoutMs);
-    target.addEventListener(LIQUID_IMAGE_READY_EVENT, finish, { once: true });
+    img.addEventListener("load", finish, { once: true });
+    img.addEventListener("error", finish, { once: true });
   });
 
 /* ── Scroll lock while the intro runs ──────────────────────────────────── */
@@ -1011,9 +1000,9 @@ export default function LandingIntro() {
          back at 5.05, and beat 8's wipe now runs after that rather than across
          it, so the swap follows the wipe's own landing instead of the fit's. */
 
-      /* It is gated on the portrait having actually painted, because the hero's
-         WebGL canvas is transparent until its texture loads — swapping to an
-         unpainted canvas is the other half of the same flash. */
+      /* It is gated on the portrait having actually loaded, because the hero's
+         <Image> can still be fetching/decoding — swapping to an unloaded image
+         is the other half of the same flash. */
       tl.call(
         () => {
           if (!heroPortrait) {
@@ -1119,7 +1108,7 @@ export default function LandingIntro() {
                  Tempting to switch to `object-cover` so an off-ratio CMS
                  portrait can't letterbox inside the box. Don't. That function
                  computes beat 7's Flip target as the hero's CONTAIN rect,
-                 because LiquidImage paints contain. Painting cover here and
+                 because the hero portrait paints contain. Painting cover here and
                  contain there makes the two rects disagree for any portrait that
                  isn't 3:4, and beat 9's instant swap turns into a visible jump.
 

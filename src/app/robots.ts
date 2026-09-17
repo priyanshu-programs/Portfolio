@@ -3,9 +3,7 @@ import { absoluteUrl } from "@/lib/siteUrl";
 
 /**
  * Crawlers get the whole site except the API surface, which holds nothing
- * indexable: /api/image is a Sanity CDN proxy (the images are already reachable
- * at their real URLs, and letting a crawler enumerate the proxy just burns
- * budget on duplicates) and /api/revalidate is a POST-only webhook.
+ * indexable: /api/revalidate is a POST-only webhook.
  */
 /**
  * Crawlers that answer questions rather than return links: ChatGPT search,
