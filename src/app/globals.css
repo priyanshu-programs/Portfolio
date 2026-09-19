@@ -235,7 +235,7 @@ html.lenis body {
    buttons. Elements that need a different cursor must now also say
    `!important`, as the case-study cover does for ViewLiveCursor. */
 * {
-  cursor: url("/cursor-arrow.svg") 4 3, auto !important;
+  cursor: url("/cursor-arrow.svg") 2.8 2.1, auto !important;
 }
 
 /* The one deliberate exception. The case-study cover swaps the arrow for

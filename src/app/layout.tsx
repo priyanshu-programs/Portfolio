@@ -55,9 +55,9 @@ const caveat = Caveat({
  */
 export const revalidate = 60;
 
-const DEFAULT_TITLE = "Priyanshu Roy — Brand Designer & Web Developer";
+const DEFAULT_TITLE = "Priyanshu Roy";
 const DEFAULT_DESCRIPTION =
-  "Most sites look like templates. Mine don't. Identity and execution, together.";
+  "I build modern websites and apps, emphasizing UX, micro-interactions and seamless transitions";
 
 /**
  * Site-wide metadata. The OG/Twitter blocks set here are inherited by every
