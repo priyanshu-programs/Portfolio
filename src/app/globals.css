@@ -629,14 +629,34 @@ body.is-transitioning {
    ── TWO COPIES OF ONE RULE — change together ──────────────────────────────
    The `1024px` here mirrors `DESKTOP_QUERY` (src/lib/useMediaQuery.ts), which
    `isPortraitCovering()` (src/lib/heroPortrait.ts) reads for the intro handoff.
-   The `27%` is `PORTRAIT_FOCUS.x` (src/lib/heroPortrait.ts) — a solved value,
-   not an eyeballed one; see that constant's comment before changing it.
+   The anchors are `PORTRAIT_FOCUS` / `PORTRAIT_FOCUS_SHORT` in that same
+   module, and `3 / 4` below is `SHORT_VIEWPORT_QUERY`. They are solved values,
+   not eyeballed ones; see those constants' comments before changing them.
 
-   Only the x forks. The y is the bottom anchor on both sides, which is what
-   stands the figure on the section's floor. */
+   The intro's Flip fits its centre panel onto the rect this paints, so a change
+   made here and not there shows as a jump at the handoff. That is the specific
+   failure src/lib/heroPortrait.ts exists to prevent. */
 :root {
   /* Mobile: cover, cropped around the face. */
   --hero-portrait-object-position: 27% 100%;
+}
+
+/* Short/landscape viewports, still below `lg` and still covering — but WIDER
+   than the art's own 3:4, so the crop has flipped axes. Above 3:4 nothing is
+   cropped horizontally (the visible x fraction is 1), which makes the focal x a
+   no-op and 50% simply the honest value. What matters is y: the bottom anchor
+   above throws the surplus height off the TOP, which is where the head is. At
+   747x645 that left only the chest on screen.
+
+   0% is solved, not picked. The head's centre sits at p≈0.18 of the source and
+   the anchor that centres a point under a visible fraction `s` is
+   `(p - s/2) / (1 - s)`; at 747x645 s_y≈0.648, giving ≈-0.41, and it stays
+   negative across this whole band. Clamped to the frame, that is the top
+   anchor. See PORTRAIT_FOCUS_SHORT in src/lib/heroPortrait.ts. */
+@media (max-width: 1023px) and (min-aspect-ratio: 3 / 4) {
+  :root {
+    --hero-portrait-object-position: 50% 0%;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -644,6 +664,72 @@ body.is-transitioning {
     /* Desktop: contain. The art letterboxes, so there is no crop to steer and
        an off-centre anchor would only slide it sideways in its box. */
     --hero-portrait-object-position: 50% 100%;
+  }
+}
+
+/* ── Hero script marquee: type scale and vertical anchor ───────────────────
+   Both live here for the same reason the object-position above does — they must
+   be right in the first painted frame, so neither can be derived in React.
+
+   They are also coupled to each other: the anchor's collision floor is computed
+   from the rendered block height, which is a function of the size. Keeping them
+   in one place is what stops a size change from silently re-opening the overlap
+   this block exists to close. */
+:root {
+  /* Below `lg`.
+
+     The inner `min()` is the fix. The old value was
+     `clamp(104px, 24.7vw, 240px)`: the vw term was deliberately raised 20% so
+     the 104px FLOOR would win on phones (<424px), but that left it free-running
+     from 607px up to the 972px where the ceiling finally caught it — the exact
+     band where there is no desktop layout to absorb a 218px script. Capping at
+     150px closes that, and binds only above 607px, so no phone moves.
+
+     The 16vh term is the second axis the old value lacked entirely. It is what
+     stops a 645px-tall viewport from being handed the same type as an 1180px
+     one; there it is the term that actually governs. */
+  --hero-marquee-size: clamp(104px, min(24.7vw, 16vh), 150px);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    /* INVARIANT — desktop must stay pixel-identical. The old clamp's vw term
+       crossed its 240px ceiling at 972px, so at EVERY width >=1024 it already
+       resolved to that ceiling, including past 1440px where --fluid-scale lifts
+       it. This is that ceiling written out, not a new value. If anything moves
+       at 1440px, this line is wrong. */
+    --hero-marquee-size: calc(240px * var(--fluid-scale));
+  }
+}
+
+/* The percentage anchors track the FIGURE, not the box: under cover the
+   source's vertical fractions map ~1:1 to viewport %, putting the chin at 38%,
+   the chest at 60% and the lower torso at 75%.
+
+   That intent is worth keeping, so the percentage is floored rather than
+   replaced — it governs on tall viewports, and clearance takes over only where
+   it would otherwise drive the marquee into the heading below it.
+
+   The clearance term is the intro heading's two lines plus its own `bottom`
+   offset plus breathing room. The heading and the mobile "let's talk" arrow
+   share that offset, so the one number covers both. */
+.hero-marquee {
+  /* Rendered block: font-size x 1.2 leading, plus the track's py-2. */
+  --hero-marquee-block: calc(var(--hero-marquee-size) * 1.2 + 1rem);
+  top: min(72%, calc(100% - var(--hero-marquee-block) - 120px));
+}
+
+@media (min-width: 640px) {
+  .hero-marquee {
+    top: min(74%, calc(100% - var(--hero-marquee-block) - 132px));
+  }
+}
+
+@media (min-width: 1024px) {
+  /* Unchanged. Above `lg` the heading moves out to the portrait's side, so
+     there is nothing beneath the marquee to clear. */
+  .hero-marquee {
+    top: 79%;
   }
 }
 

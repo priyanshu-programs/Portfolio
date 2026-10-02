@@ -104,6 +104,11 @@ export default function Hero() {
      the face takes the crop out of the empty shoulder instead, keeping the head
      whole and landing it at ~48% — visually centred. See PORTRAIT_FOCUS.
 
+     That holds while the viewport is TALLER than the art's 3:4. Wider than
+     that — landscape, a short window — and the crop flips to the vertical axis,
+     where the bottom anchor would cut the head off instead. A second fork
+     handles it; see PORTRAIT_FOCUS_SHORT.
+
      The breakpoint and the focal point both live in @/lib/heroPortrait, shared
      with LandingIntro: it fits its centre panel onto the rect this paints, so
      any drift between the two desyncs the seam at the handoff.
@@ -497,23 +502,21 @@ export default function Hero() {
           <div
             ref={marqueeWrapRef}
             aria-hidden
-            /* Mobile offsets track the figure, not the box: under cover the
-               source's vertical fractions map ~1:1 to viewport %, putting the
-               chin at 38%, chest at 60% and the lower torso at 75%. The old
-               58%/62% predate the full-height portrait and now cut across the
-               chest. */
-            className="pointer-events-none absolute left-0 w-full top-[72%] sm:top-[74%] lg:top-[79%] lg:-translate-y-1/2 z-20 mix-blend-difference"
+            /* `.hero-marquee` owns the vertical anchor (globals.css), alongside
+               the `--hero-marquee-size` the track below reads. The two are
+               coupled — the anchor's collision floor is computed from the block
+               height the size produces — so they are kept together there rather
+               than split across a class and an arbitrary value here. */
+            className="hero-marquee pointer-events-none absolute left-0 w-full lg:-translate-y-1/2 z-20 mix-blend-difference"
           >
             <div ref={marqueeRevealRef} className="w-full overflow-hidden will-change-transform">
               <div
                 ref={marqueeInnerRef}
                 className="flex items-center w-fit whitespace-nowrap font-script text-white leading-[1.2] select-none py-2 lg:py-4 will-change-transform"
-                /* Floor and vw term are both 20% above the desktop-derived
-                   base: below ~424px the vw term sits under the floor, so on
-                   phones the floor is what actually renders and raising vw
-                   alone would do nothing there. The 240px ceiling is
-                   untouched, so wide desktop is unchanged. */
-                style={{ fontSize: "clamp(104px, 24.7vw, calc(240px * var(--fluid-scale)))" }}
+                /* See `--hero-marquee-size` in globals.css: it carries the
+                   phone floor, the tablet-band cap and the viewport-height term
+                   that keeps a short viewport from being handed desktop type. */
+                style={{ fontSize: "var(--hero-marquee-size)" }}
               >
                 <div className="flex items-center shrink-0">
                   <span>{marqueeText}</span>

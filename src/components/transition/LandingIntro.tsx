@@ -6,7 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { CustomEase } from "gsap/CustomEase";
 import Image from "next/image";
 import { useEffect, useMemo, useRef } from "react";
-import { PORTRAIT_FOCUS, isPortraitCovering } from "@/lib/heroPortrait";
+import { isPortraitCovering, resolvePortraitFocus } from "@/lib/heroPortrait";
 import { useSiteContent } from "@/components/ContentProvider";
 import { INTRO_ARMED_CLASS } from "@/lib/landingIntroArm";
 
@@ -138,19 +138,23 @@ const getPaintedPortraitRect = (wrapper: HTMLElement) => {
     }
 
     /* Place the overflow the way the hero's object-position anchor does, so the
-       panel lands on the same crop the hero paints. `visible` is the fraction of the art
-       the box shows on each axis; the anchor distributes the rest. A centred
-       placement would be wrong here — the whole point of the focal x is that
-       the crop is asymmetric (more off the empty shoulder than off the face). */
-    const visibleX = Math.min(1, box.width / width);
+       panel lands on the same crop the hero paints. Each axis overflows by
+       `size - box`, and the anchor is the fraction of that overflow taken off
+       the leading edge — the same meaning `object-position` gives it. A centred
+       placement would be wrong here: the whole point of the focal point is that
+       the crop is asymmetric.
+
+       BOTH axes are driven, not just x. Which one actually overflows depends on
+       the viewport's aspect against the art's, and on a viewport wider than 3:4
+       it is y — where a hardcoded bottom anchor would crop the head off. The
+       resolver picks the matching focus; see PORTRAIT_FOCUS_SHORT. */
+    const focus = resolvePortraitFocus();
 
     return {
       width,
       height,
-      x: box.left - PORTRAIT_FOCUS.x * (1 - visibleX) * width,
-      // The focal y is the bottom anchor (0), so the art's bottom edge sits on
-      // the box's bottom and any surplus height runs off the top.
-      y: box.top + box.height - height,
+      x: box.left - focus.x * (width - box.width),
+      y: box.top - focus.y * (height - box.height),
     };
   }
 
