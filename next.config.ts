@@ -1,10 +1,22 @@
 import type { NextConfig } from "next";
-import path from "node:path";
+
+/* No `turbopack.root` here on purpose.
+
+   Next auto-detects the project root by looking for a lockfile, and
+   `package-lock.json` sits next to this file — so detection already resolves to
+   this directory and an explicit override bought nothing. The docs reserve the
+   option for non-standard layouts and linked dependencies outside the project
+   (see node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/turbopack.md).
+
+   It is also the knob that produced an endless dev reload loop: a `.next`
+   copied in from another machine had that machine's absolute path baked in as
+   `config.turbopack.root`, Turbopack would not resolve `node_modules/next`
+   outside that (nonexistent) root, and every HMR version poll panicked with
+   "Next.js package not found" — which the dev client answers with a full page
+   reload, forever. `scripts/ensure-clean-next.mjs` now guards against the stale
+   cache; not pinning the path here is the other half. */
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: path.resolve(__dirname),
-  },
   images: {
     // Serve AVIF/WebP to browsers that support them for every next/image usage.
     formats: ["image/avif", "image/webp"],
