@@ -22,6 +22,7 @@ export default function ViewLiveCursor({
     const node = cursorRef.current;
     const container = containerRef.current;
     if (!node || !container) return;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
 
     // Fixed positioning relative to the viewport, centered on coordinates
     gsap.set(node, { xPercent: -50, yPercent: -50, scale: 0, opacity: 0 });
@@ -60,7 +61,7 @@ export default function ViewLiveCursor({
     };
 
     const handleMove = (e: PointerEvent) => {
-      if (!isActive) return;
+      if (!isActive || e.pointerType === "touch") return;
       hasPointer = true;
       lastX = e.clientX;
       lastY = e.clientY;
