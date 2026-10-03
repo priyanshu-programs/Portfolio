@@ -15,6 +15,12 @@ import type { CaseStudyContent } from "@/lib/sanity/types";
 
 const DEFAULT_NAME = "Priyanshu Roy";
 
+const UPDATED_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 /** Matches /work's text column so the two pages line up. */
 const GUTTER = "clamp(1.5rem, 10vw, 12.5rem)";
 
@@ -49,6 +55,17 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
     project.textColor,
     project.navColor
   );
+
+  // `_updatedAt` is the honest signal (it moves when the project is edited);
+  // `_createdAt` covers a document somehow saved without one. Formatted to
+  // month precision with an explicit locale and UTC: this is a client
+  // component, so a locale- or zone-dependent string would differ between the
+  // server render and the browser's and trip a hydration mismatch. Month
+  // precision also keeps a trivial typo-fix from reading as a rewrite.
+  const updatedIso = project.updatedAt ?? project.createdAt;
+  const updatedLabel = updatedIso
+    ? UPDATED_FORMAT.format(new Date(updatedIso))
+    : null;
 
   const containerRef = useRef<HTMLElement>(null);
   const coverRef = useRef<HTMLDivElement>(null);
@@ -173,13 +190,28 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
                 >
                   Service:
                 </span>
-                <span 
+                <span
                   className="mt-2 block font-medium text-[clamp(0.9375rem,1.4vw,calc(1.125rem*var(--fluid-scale)))] uppercase"
                   style={{ fontFamily: "var(--font-manrope-stack)" }}
                 >
                   {project.services}
                 </span>
               </div>
+            )}
+
+            {/* Answer engines read recency off the page, not off JSON-LD alone:
+                a case study with no visible date reads as undated rather than
+                current. The timestamp is Sanity's own `_updatedAt`, the same
+                value behind this page's `dateModified` and the sitemap's
+                `lastmod`, so the three cannot disagree. */}
+            {updatedLabel && (
+              <p
+                className="fade-in-up mt-4 text-[0.8125rem] uppercase opacity-60"
+                style={{ fontFamily: "var(--font-manrope-stack)" }}
+              >
+                Updated{" "}
+                <time dateTime={updatedIso}>{updatedLabel}</time>
+              </p>
             )}
           </header>
 

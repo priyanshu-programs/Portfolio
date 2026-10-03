@@ -4,6 +4,64 @@ Newest first. One entry per unit of work. See `plan.md` for the phased plan.
 
 Entry format: what changed · files touched · how it was verified · what's next.
 
+## 2026-10-03 — First GEO/AEO pass: recency, extraction noise, AI-crawler declarations
+
+Scope widened by request: SEO work on this site now covers AEO/GEO and agentic readiness by
+default, not classic search alone. Ran `seo-geo` against the live site for the first time.
+
+**GEO Readiness: ≈45/100**
+
+| Dimension | Weight | Score | Note |
+|---|---:|---:|---|
+| Citability | 25% | 32 | No self-contained answer blocks, no definitions, no data points |
+| Structural readability | 20% | 45 | **0 question-form headings of 22**, 0 tables, 0 FAQ |
+| Multi-modal | 15% | 40 | Images only — no video, charts or tools |
+| Authority & brand | 20% | 22 | No dates rendered; no Wikipedia/Reddit/YouTube presence |
+| Technical accessibility | 20% | 88 | SSR, AI search bots allowed, real 404s — carrying the score |
+
+**A finding worth keeping:** `content_quality.py` scores the prose **89–94/100** on every page with
+**0 filler and 0 AI-pattern** markers. The classic audit's Content Quality 38 measures word count
+and page coverage, not writing quality. The writing is good; there is not enough of it, and it is
+not shaped for extraction.
+
+**Shipped.** Files: `src/components/work/CaseStudy.tsx`, `src/components/sections/Hero.tsx`,
+`src/components/transition/LandingIntro.tsx`, `src/components/ui/FloatingMenu.tsx`,
+`src/app/robots.ts`.
+
+1. **Case studies now render their own recency.** Sanity's `_updatedAt` was already fetched and
+   already feeding JSON-LD `dateModified` and the sitemap's `lastmod` — it was simply never shown,
+   so both pages read as undated. Now a `<time dateTime="…">` beside the Service label. Month
+   precision, explicit locale, UTC: this is a client component, so a locale- or zone-dependent
+   string would differ between server and browser render and trip a hydration mismatch.
+2. **`data-nosnippet` on three decorative blocks.** The homepage's extracted body text opened with
+   the brand name eight times before the h1. Traced exactly: the hero marquee repeats it 6× to loop
+   seamlessly (`Hero.tsx:538-553`), the intro preloader wordmark (`LandingIntro.tsx:1126`), and the
+   closed menu overlay (`FloatingMenu.tsx:302`), which sits in the DOM on every page. All three
+   already had `aria-hidden` — that governs the accessibility tree and does nothing for text
+   extraction.
+3. **`Claude-SearchBot` and `Applebot-Extended` declared.** `ClaudeBot` was already listed but is
+   training-only; `Claude-SearchBot` is the bot that governs citability in Claude's search features,
+   and the two are routinely conflated. Nothing was blocked before (the named group falls through to
+   `User-Agent: *`), but that group exists to state intent so a future wildcard tightening cannot
+   silently drop the site out of AI answers.
+
+**Honest limit on #2:** `data-nosnippet` is a Google-honoured signal, not a DOM change. The repeated
+text is still present for extractors that ignore it. Removing it properly means not emitting the
+marquee duplicates server-side — deferred, since it would mean reworking a working animation.
+
+Verified: `npx tsc --noEmit` and `npm run build` exit 0; checked against a local production server —
+robots.txt lists both new agents, 3 `data-nosnippet` blocks render on the homepage, and both case
+studies emit `<time dateTime="2026-10-03T…">October 2026</time>`.
+
+**Blocked, not skipped:** `agent_ux_check.py` (Playwright browser cannot download —
+`ENOTFOUND playwright.download.prss.microsoft.com`), `nlp_analyze.py` (needs a Google Cloud NL key),
+`pagespeed_check.py` (PSI keyless quota, as on every prior attempt).
+
+**Next, and it is content:** question-form headings (0 of 22 today), a 130–170 word self-contained
+answer block, a services comparison table, an FAQ, and off-site presence. Brand mentions correlate
+~3x more strongly with AI citations than backlinks (YouTube ~0.74 vs Domain Rating ~0.27), and the
+site is at zero on all of them.
+
 ## 2026-10-03 — Studio deployed, content entered, re-audited: ~65 → ~77
 
 Ran `sanity deploy` against the correct account, then entered `seoTitle` and gallery alt text in the

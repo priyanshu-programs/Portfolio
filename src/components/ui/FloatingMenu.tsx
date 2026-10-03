@@ -298,6 +298,12 @@ export default function FloatingMenu() {
         role="dialog"
         aria-modal={isOpen}
         aria-hidden={!isOpen}
+        /* The overlay is in the DOM on every page, closed. `aria-hidden` tracks
+           its open state for assistive tech, but text extractors read it either
+           way, so its nav labels and wordmark leaked into every page's body
+           text. Static rather than tied to `isOpen`: this only governs snippet
+           eligibility, and the markup is server-rendered closed. */
+        data-nosnippet
         data-lenis-prevent
         className={`fixed inset-0 z-[10000] overflow-hidden bg-[#050505] text-white ${isOpen ? "pointer-events-auto" : "pointer-events-none"
           }`}

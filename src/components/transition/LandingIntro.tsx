@@ -1117,8 +1117,18 @@ export default function LandingIntro() {
     };
   }, [panels]);
 
+  // `data-nosnippet` below does for text extractors what `aria-hidden` does for
+  // screen readers: this preloader paints before the hero, so its wordmark and
+  // counter were the first body text on the page for anything reading the DOM.
+  // Excluded from snippets and AI-Overview snippet generation; still indexed,
+  // still visible.
   return (
-    <div ref={stageRef} className="landing-intro-stage" aria-hidden="true">
+    <div
+      ref={stageRef}
+      className="landing-intro-stage"
+      aria-hidden="true"
+      data-nosnippet
+    >
       {/* The dark field itself. First child and lowest z-index, so the panels
           and labels below paint over it; beat 8 wipes it up and away. */}
       <div ref={veilRef} className="landing-intro-veil" />

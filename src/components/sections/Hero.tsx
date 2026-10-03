@@ -519,6 +519,14 @@ export default function Hero() {
           <div
             ref={marqueeWrapRef}
             aria-hidden
+            /* The track below repeats the name six times to loop seamlessly.
+               `aria-hidden` keeps that out of the accessibility tree, but text
+               extractors read the DOM regardless — so the homepage's first
+               extracted words were the brand name six times over, ahead of the
+               h1. `data-nosnippet` is the mechanism that actually applies to
+               them: the block stays indexed and visible, but is excluded from
+               snippets and AI-Overview snippet generation. */
+            data-nosnippet
             /* `.hero-marquee` owns the vertical anchor (globals.css), alongside
                the `--hero-marquee-size` the track below reads. The two are
                coupled — the anchor's collision floor is computed from the block
