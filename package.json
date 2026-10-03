@@ -15,7 +15,8 @@
     "sanity:verify": "node --env-file=.env.local --import tsx scripts/sanity/verify.mts",
     "sanity:check-webhook": "node --env-file=.env.local --import tsx scripts/sanity/check-webhook.mts",
     "sanity:delete-placeholders": "node --env-file=.env.local --import tsx scripts/sanity/delete-placeholder-projects.mts",
-    "sanity:fix-service-linebreak": "node --env-file=.env.local --import tsx scripts/sanity/fix-service-card-linebreak.mts"
+    "sanity:fix-service-linebreak": "node --env-file=.env.local --import tsx scripts/sanity/fix-service-card-linebreak.mts",
+    "indexnow:ping": "node --env-file=.env.local --import tsx scripts/indexnow-ping.mts"
   },
   "dependencies": {
     "@paper-design/shaders": "^0.0.80",
