@@ -4,6 +4,99 @@ Newest first. One entry per unit of work. See `plan.md` for the phased plan.
 
 Entry format: what changed · files touched · how it was verified · what's next.
 
+---
+
+# ⚠ OUTSTANDING — the only things left that move the scores
+
+**Not a log entry. A standing backlog. Read this before asking "why hasn't the score gone up?"**
+
+Current: **Classic SEO ≈77** · **GEO/AEO ≈51**. The technical track is **finished** — host, schema,
+canonicals, sitemap, alt pipeline, `llms.txt`, crawler declarations, snippet hygiene are all done
+and verified live. **There is no further code change of consequence.**
+
+Every remaining point needs **writing and off-site presence**. That work is Priyanshu's; an agent
+can format, structure and ship it, but cannot invent the substance.
+
+| # | Task | Owner | Moves | Est. gain |
+|---|---|---|---|---:|
+| 1 | Expand thin pages to 600+ words each | Priyanshu | Content Quality 23% | **+8–10 classic** |
+| 2 | Question-form headings + FAQ + a table | Priyanshu | GEO structural 20% | **+8 GEO** |
+| 3 | A 130–170 word self-contained answer block per page | Priyanshu | GEO citability 25% | **+8 GEO** |
+| 4 | E-E-A-T: testimonials, named results, credentials | Priyanshu | Content + GEO authority | **+5 both** |
+| 5 | Off-site presence: YouTube, Reddit, Wikidata, LinkedIn | Priyanshu | GEO authority 20% | **+10 GEO** |
+| 6 | Real `/services` page (the `/#services` anchor is dangling) | Priyanshu + agent | On-Page + Content | **+3 classic** |
+| 7 | Free Google API key for PageSpeed + CrUX | Priyanshu | Unblocks Performance 10% | unknown |
+| 8 | Speculation rules + `fetchpriority` on the real LCP | Agent, after #7 | Performance 10% | **+3 classic** |
+
+### 1. The pages are too thin — this is the single biggest lever
+
+Measured word counts: home **252**, `/work` **50**, `/about` **175**, `/contact` **96**,
+`kbrs` **176**, `a2` **210**. Content Quality is **23% of the classic score** and sits at **38**,
+graded on word count, E-E-A-T evidence and page coverage. `/work` being a 50-word hub page is the
+worst offender.
+
+Target 600+ words per page. **The writing itself is not the problem** — `content_quality.py` scores
+the existing prose **89–94/100** with 0 filler and 0 AI-pattern markers. There simply is not enough
+of it.
+
+### 2. Zero question-form headings, zero tables, zero FAQ
+
+Measured: **0 of 22 headings** are question-form, across all six pages. Answer engines match
+question headings to query patterns. Convert the case-study section headings:
+
+- `Challenge` → `What problem did KBRS need solved?`
+- `Approach` → `How was it approached?`
+- `Overview` → `What is KBRS & Associates?`
+
+Add one services comparison **table** and one **FAQ** block (real Q&A headings, not schema markup —
+FAQ rich results are deprecated for commercial sites, but the structure still helps extraction).
+
+### 3. No self-contained answer blocks
+
+~**44% of AI citations come from the first 30% of a page**. Each page needs one quotable,
+self-contained block of ~130–170 words near the top that answers its core question without needing
+surrounding context — ideally opening with a definition pattern (`X is…`, `X refers to…`).
+
+### 4. No E-E-A-T evidence
+
+No testimonials, no named client results, no metrics, no credentials beyond one line
+(`Smart Bengal Hackathon Finalist '25`). Add: client quotes with attribution, specific outcomes
+("cut load time from X to Y", "N enquiries in the first month"), and dates.
+
+### 5. Off-site presence — the dominant GEO signal, currently zero
+
+Brand mentions correlate ~**3x more strongly with AI citations than backlinks**
+(Ahrefs, 75k brands):
+
+| Signal | Correlation | Status |
+|---|---:|---|
+| YouTube mentions | ~0.737 | **none** |
+| Reddit mentions | high | **none** |
+| Wikipedia / Wikidata | high | **none** |
+| LinkedIn | moderate | profile only |
+| Domain Rating (backlinks) | ~0.266 | new domain, absent from Common Crawl |
+
+Slowest item here and the one that compounds. A Wikidata entity and a few genuine Reddit/YouTube
+appearances are worth more than any further technical work.
+
+### 6–8. Smaller, mostly mechanical
+
+`/about`'s h1 is the single word "About". `/#services` is a nav anchor with no page behind it, and
+all three homepage service cards link to `/contact` instead. Performance is scored **58 on static
+signals only** — PSI's keyless quota has failed on every attempt across every session, so a free
+Google API key (PageSpeed Insights + Chrome UX Report, stored at
+`~/.config/claude-seo/google-api.json`) is the prerequisite for ever knowing the real CWV number.
+Only once measured is it worth marking the actual LCP element.
+
+### Honest ceiling
+
+Items 1–6 get Classic to roughly **90** and GEO to roughly **80**. Neither reaches 100: Content
+Quality is graded partly on site size and history, and GEO authority partly on third-party presence
+that cannot be manufactured quickly. The domain was registered **2026-10-02** and is absent from the
+Common Crawl graph — some of this is simply time.
+
+---
+
 ## 2026-10-03 — Correction: the case-study date was an edit artifact in the wrong place
 
 Reverting the visible date shipped in `83af7df` and replacing it. File:
