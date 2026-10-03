@@ -57,6 +57,23 @@ studies emit `<time dateTime="2026-10-03T…">October 2026</time>`.
 `ENOTFOUND playwright.download.prss.microsoft.com`), `nlp_analyze.py` (needs a Google Cloud NL key),
 `pagespeed_check.py` (PSI keyless quota, as on every prior attempt).
 
+**Post-deploy re-measure (live):** `data-nosnippet` ×3 on the homepage; `<time>` on both case
+studies; robots lists both new agents. `agentic_check` 6 pass / 3 info and `preload_check` 50,
+both unchanged as expected — neither was touched.
+
+| Score | Before | After |
+|---|---:|---:|
+| Classic SEO | ≈77 | **≈77** |
+| GEO Readiness | ≈45 | **≈51** |
+
+GEO dimensions moved: Authority & brand **22 → 42** (recency now readable), Technical accessibility
+**88 → 94**, Citability **32 → 36**, Structural **45 → 46**, Multi-modal 40 unchanged.
+
+**The classic score did not move, and that is the expected result.** Its weighting rewards word
+count, coverage and page-level technicals — none of which this pass touched. Rendering recency and
+suppressing decorative text are AEO/GEO levers specifically. Worth remembering before reading a flat
+classic number as "no progress".
+
 **Next, and it is content:** question-form headings (0 of 22 today), a 130–170 word self-contained
 answer block, a services comparison table, an FAQ, and off-site presence. Brand mentions correlate
 ~3x more strongly with AI citations than backlinks (YouTube ~0.74 vs Domain Rating ~0.27), and the
