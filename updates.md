@@ -4,6 +4,72 @@ Newest first. One entry per unit of work. See `plan.md` for the phased plan.
 
 Entry format: what changed · files touched · how it was verified · what's next.
 
+## 2026-10-03 — Studio deployed, content entered, re-audited: ~65 → ~77
+
+Ran `sanity deploy` against the correct account, then entered `seoTitle` and gallery alt text in the
+Studio. Re-audited the live site. Raw outputs in `priyanshuroy.com-audit/live2/`.
+
+**Studio deploy.** `priyanshuroy-portfolio.sanity.studio` rebuilt — `Last-Modified` moved
+`2026-09-06 13:14` → `2026-10-03 10:55`, schema `portfolio-studio` registered against `i0fv16h3`.
+The account fix was the gate: `priyanshuroy.academics@gmail.com` sees `i0fv16h3`; the previously
+logged-in `priyanshuroy.official19@gmail.com` saw only `13cts9ov`.
+
+**Content entered.** Verified against the Sanity API, not just the rendered page:
+`seoTitle` = `Priyanshu Roy — Website Designer & Web Developer`; 4/4 alts on `kbrs-associates`,
+5/5 on `a2-studios`. Alt text was written by actually viewing each image rather than inferring from
+captions — all captions were `null`, so there was nothing to infer from.
+
+**Measured live:**
+
+| Check | Baseline | Prev | Now |
+|---|---|---|---|
+| Homepage `<title>` length | 13 | 13 | **48** |
+| Empty `alt` on `/work/a2-studios` | 11 of 13 | 11 of 13 | **1 of 13** |
+| Empty `alt` on `/work/kbrs-associates` | 9 of 11 | 9 of 11 | **1 of 11** |
+| Sitemap `<loc>` returning 200 | 0 of 6 | 0 of 6 | **6 of 6** |
+| agentic_check | 3 P0 pass | 3 pass / 2 info | **6 pass / 3 info** |
+| Homepage preload hints | 9 | 7 | 7 |
+
+The single remaining empty alt on each case study is the *next-project* navigation thumbnail (asset
+`30baec7f…`, which belongs to a different document and is not a gallery slide). It sits inside a
+link with visible text, so empty alt is correct there. The homepage's 7 remain decorative
+`LandingIntro` panels and ornaments — also correct.
+
+**One tooling caveat worth not re-discovering:** `parse_html.py` still reports the homepage h1 as
+`WebsiteDesigner&WebDeveloper`. That is the tool, not a regression — it uses `get_text(strip=True)`,
+which drops text-node whitespace before joining. Extracted with whitespace preserved, all six h1s
+read correctly: `Website Designer & Web Developer`, `Good work takes time. These took mine.`, etc.
+
+**Re-score, same weights:**
+
+| Category | Weight | Baseline | Prev | Now | Why not higher |
+|---|---:|---:|---:|---:|---|
+| Technical SEO | 22% | 62 | 72 | **95** | Host conflict resolved; nothing material left |
+| Content Quality | 23% | 38 | 38 | **38** | Out of scope — pure writing, unchanged word counts |
+| On-Page SEO | 20% | 55 | 72 | **88** | `/about` h1 is still "About"; `/#services` still dangling |
+| Schema | 10% | 78 | 92 | **98** | — |
+| Performance | 10% | 50 | 58 | **58** | CWV still unmeasured; no speculation rules, no `fetchpriority` |
+| AI Search Readiness | 10% | 72 | 88 | **92** | Only deliberate skips left (Content-Signal, Markdown, WebMCP) |
+| Images | 5% | 40 | 40 | **90** | — |
+| **Total** | | **55** | **≈65** | **≈77** | |
+
+**+22 from baseline.** This is essentially the ~78 ceiling the plan predicted for a technical-only
+track, reached. Performance remains the one category scored on assumption rather than measurement:
+`pagespeed_check` hit `PSI rate limit exceeded (240 QPM / 25,000 QPD)` again on the keyless shared
+quota, as it did on every prior attempt.
+
+**Next, in order of value:**
+
+1. **Content track** — the only remaining lever of size. Content Quality is 23% of the weighting and
+   sits at 38 on word count (`/work` is 50 words), absent E-E-A-T evidence and 6 pages total. No code
+   or CMS change moves it. Worth roughly +10 to the total on its own.
+2. **Free Google API key** (PageSpeed Insights + Chrome UX Report, stored at
+   `~/.config/claude-seo/google-api.json`) — converts Performance from assumption to measurement.
+   Could move the number either direction; currently unknowable.
+3. **Cheap technical remainder** — speculation rules, `fetchpriority="high"` on the real LCP element
+   (identify it only once measurement exists), `/about` h1, a real `/services` page behind the
+   dangling `/#services` anchor.
+
 ## 2026-10-03 — Vercel redirect flipped to apex; Sanity toolchain to 6.17.0
 
 Two things, one of them a correction to an assumption in the previous entry.
