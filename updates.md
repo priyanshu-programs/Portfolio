@@ -4,6 +4,58 @@ Newest first. One entry per unit of work. See `plan.md` for the phased plan.
 
 Entry format: what changed · files touched · how it was verified · what's next.
 
+## 2026-10-03 — Vercel redirect flipped to apex; Sanity toolchain to 6.17.0
+
+Two things, one of them a correction to an assumption in the previous entry.
+
+**1. Host conflict resolved — the audit's #1 critical finding is closed.**
+
+The Vercel domain settings were flipped so `priyanshuroy.com` serves and `www` redirects to it.
+Zero code changes, as predicted. Measured live:
+
+| Check | Before | After |
+|---|---|---|
+| `priyanshuroy.com/` | 308 → www | **200** |
+| `www.priyanshuroy.com/` | 200 | **308 → apex** |
+| Path preserved through redirect | — | yes (`/work` → `/work`) |
+| Sitemap `<loc>` URLs returning 200 | 0 of 6 | **6 of 6** |
+| `canonical` / `og:url` | named a host that redirected | `https://priyanshuroy.com`, now truthful |
+| `www` strings in homepage source | — | **0** |
+
+Worth recording the failure mode, because it is not obvious: setting `www → apex` *first* leaves
+Save greyed out in the Vercel UI with no error message. Apex still pointed at `www` at that moment,
+so the pair would have formed a redirect loop and Vercel silently refuses it. The apex must be
+promoted to Production first; only then will the `www` redirect save.
+
+**2. `sanity` 6.5.0 → 6.17.0, `@sanity/vision` bumped to match.** Files: `package.json`,
+`package-lock.json` (commit `9b95869`, kept separate from SEO work).
+
+This arrived as collateral: `sanity deploy` failed and `npm update sanity` was run in response, but
+the two were unrelated — see below. Keeping the bump rather than reverting it, because `^6.5.0` was
+already the declared range, so the lockfile had merely drifted behind the project's own intent.
+`vision` was bumped in lockstep because `npm update` had moved only `sanity`, leaving a Studio
+plugin skewed from the Studio while `visionTool()` is registered in `sanity.config.ts`.
+
+Verified: `npx tsc --noEmit`, `npm run build` and `npx sanity build` all exit 0; all 16 routes still
+generate. No site-bundle exposure — both packages are devDependencies, nothing under `src/` imports
+`sanity`, there is no embedded `/studio` route, and `next`/`react` did not move.
+
+**Discovered, still blocking the remaining two items:**
+
+- **The hosted Studio is stale.** `priyanshuroy-portfolio.sanity.studio` was last built
+  **2026-09-06**; `gallerySlide.alt` landed **2026-10-03** in `210a57d`. The Next.js site redeploys
+  on push, the Studio only on `sanity deploy` — which was never run. So the Alt text field is
+  correct in code but absent from the Studio UI. This is why the previous entry's "someone needs to
+  type the alt text" was not actionable as written.
+- **`sanity deploy` fails on the wrong account.** `User is missing required grant
+  sanity.project.read`. Not a CLI version issue: the logged-in account
+  (`priyanshuroy.official19@gmail.com`) can see only project `13cts9ov`, while this repo and the
+  live site both use `i0fv16h3` (confirmed via `cdn.sanity.io/images/i0fv16h3/` on a served page).
+
+**Next:** log in as the account owning `i0fv16h3` (`sanity logout` → `sanity login`; verify with
+`sanity projects list`), run `sanity deploy`, then enter `seoTitle` and the gallery alt text in the
+Studio and re-audit. Score should move ~65 → ~78.
+
 ## 2026-10-03 — Deployed and re-audited live: 55 → ~65
 
 Pushed `210a57d` to `main`, Vercel deployed it, and re-ran the audit against the live site. Raw
