@@ -1,7 +1,11 @@
 import "server-only";
 import { cache } from "react";
 import { sanityClient, warnUnconfigured } from "./client";
-import { caseStudyBySlugQuery, workSlugsQuery } from "./queries";
+import {
+  caseStudyBySlugQuery,
+  workSitemapQuery,
+  workSlugsQuery,
+} from "./queries";
 import { buildImageUrl } from "./image";
 import type { CaseStudyContent, GalleryItem, ProjectRef } from "./types";
 
@@ -115,6 +119,48 @@ export const getWorkSlugs = cache(async (): Promise<string[]> => {
   }
 });
 
+/** One sitemap row: the route's slug and the date its content last changed. */
+export interface WorkSitemapEntry {
+  slug: string;
+  updatedAt?: string;
+}
+
+/**
+ * Slugs plus `_updatedAt` for the sitemap. Same failure posture as
+ * getWorkSlugs: [] on error, so an unreachable Sanity degrades to a
+ * static-routes-only sitemap rather than a failed build.
+ *
+ * Separate from getWorkSlugs because the sitemap needs a date and
+ * generateStaticParams needs a bare string — widening the shared one would make
+ * every build pay for a field it discards.
+ */
+export const getWorkSitemapEntries = cache(
+  async (): Promise<WorkSitemapEntry[]> => {
+    if (!sanityClient) {
+      warnUnconfigured("getWorkSitemapEntries");
+      return [];
+    }
+
+    try {
+      const rows = await sanityClient.fetch<
+        { slug?: string | null; _updatedAt?: string | null }[]
+      >(workSitemapQuery, {}, { next: { tags: ["site-content"], revalidate: 60 } });
+
+      return (rows ?? [])
+        .filter((row): row is { slug: string; _updatedAt?: string } =>
+          Boolean(row?.slug)
+        )
+        .map(({ slug, _updatedAt }) => ({
+          slug,
+          updatedAt: _updatedAt ?? undefined,
+        }));
+    } catch (error) {
+      console.error("[sanity] getWorkSitemapEntries failed:", error);
+      return [];
+    }
+  }
+);
+
 interface RawProject {
   title?: string;
   slug?: string;
@@ -130,7 +176,7 @@ interface RawProject {
   approach?: string[];
   galleryHeading?: string;
   gallerySubheading?: string;
-  gallery?: { image?: unknown; caption?: string }[];
+  gallery?: { image?: unknown; caption?: string; alt?: string }[];
   pageBg?: string;
   accent?: string;
   galleryBg?: string;
@@ -154,6 +200,7 @@ function normalize(raw: RawResult, slug: string): CaseStudyContent {
     .map((item) => ({
       image: buildImageUrl(item.image, 1400),
       caption: item.caption,
+      alt: item.alt?.trim() || undefined,
     }))
     // A slide whose asset failed to resolve would render as an empty card.
     .filter((item) => Boolean(item.image));

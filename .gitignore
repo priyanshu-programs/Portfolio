@@ -53,3 +53,9 @@ zajno-*
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# vendored agent tooling (clones + their venvs) — regenerable, not committed
+/vendor/
+
+# SEO audit artifacts (tool output, not part of the app)
+/*-audit/

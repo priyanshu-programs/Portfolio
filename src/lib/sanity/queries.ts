@@ -73,6 +73,25 @@ export const workSlugsQuery = /* groq */ `
 `;
 
 /**
+ * The same publishable set as workSlugsQuery, plus Sanity's own `_updatedAt`,
+ * for the sitemap's `lastmod`.
+ *
+ * Kept separate rather than widening workSlugsQuery: that one feeds
+ * generateStaticParams, which wants a bare string[] and runs on every build.
+ *
+ * The date has to come from the document, not from the build. Stamping
+ * `new Date()` on every entry — which is what the sitemap did — moves every
+ * `lastmod` on every deploy, and Google responds to a `lastmod` that is always
+ * "now" by ignoring the field. `_updatedAt` changes only when the project
+ * actually changes, which is the whole point of the signal.
+ */
+export const workSitemapQuery = /* groq */ `
+  *[_type == "workProject" && defined(slug.current) && visible != false && comingSoon != true]{
+    "slug": slug.current, _updatedAt
+  }
+`;
+
+/**
  * One case study plus the ordered list of all projects. The list is slim (no
  * bodies) and lets getCaseStudy resolve the "next project" link in TypeScript,
  * including the wrap from the last project back to the first — cheaper and
@@ -90,7 +109,7 @@ export const caseStudyBySlugQuery = /* groq */ `{
     summary, liveUrl, cover,
     challenge, approach,
     galleryHeading, gallerySubheading,
-    gallery[]{ image, caption },
+    gallery[]{ image, caption, alt },
     pageBg, accent, textColor, navColor, galleryBg
   },
   "ordered": *[_type == "workProject" && defined(slug.current) && visible != false && comingSoon != true]

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
+import JsonLd from "@/components/JsonLd";
+import { graph, webPageNode } from "@/lib/schema";
 
 const DEFAULT_TITLE = "Contact — Priyanshu Roy";
 const DEFAULT_DESCRIPTION =
@@ -44,8 +46,29 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function ContactLayout({
+/** Same rationale as about/layout.tsx; this layout wraps only /contact. */
+export default async function ContactLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  const content = await getSiteContent();
+  const contact = content?.contact;
+  const name = content?.settings?.name;
+
+  return (
+    <>
+      <JsonLd
+        data={graph([
+          webPageNode({
+            path: "/contact",
+            name:
+              contact?.seoTitle?.trim() ||
+              (name ? `Contact — ${name}` : DEFAULT_TITLE),
+            description: contact?.seoDescription?.trim() || DEFAULT_DESCRIPTION,
+            type: "ContactPage",
+          }),
+        ])}
+      />
+      {children}
+    </>
+  );
 }

@@ -594,7 +594,7 @@ export default function ContactStage() {
                 >
                   <span className="reveal-inner inline-block will-change-transform">
                     {word}
-                  </span>
+                  </span>{" "}
                 </span>
               ))
             ) : (

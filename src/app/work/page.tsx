@@ -91,11 +91,18 @@ export default function WorkPage() {
               className="tracking-[-0.04em] font-medium text-[#1d1d1f]"
               style={{ fontSize: "clamp(3.9rem, 6.6vw, calc(7.2rem * var(--fluid-scale)))", lineHeight: 1.03 }}
             >
+              {/* The `{" "}` is for text extraction, not layout: these are
+                  block spans, so the two lines are visually separate but their
+                  `textContent` concatenated into `Good work takes time.These
+                  took mine.` — one run-on string to Google, screen readers and
+                  AI crawlers. Trailing whitespace in a block box is trimmed at
+                  render, so the space costs nothing visually. Same fix as the
+                  `Reveal` helpers in src/components/sections. */}
               {["Good work takes time.", "These took mine."].map((line) => (
                 <span key={line} className="block overflow-hidden pb-1">
                   <span className="headline-line block will-change-transform">
                     {line}
-                  </span>
+                  </span>{" "}
                 </span>
               ))}
             </h1>

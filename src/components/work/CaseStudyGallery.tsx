@@ -369,7 +369,11 @@ export default function CaseStudyGallery({
                   {item.image && (
                     <Image
                       src={item.image}
-                      alt={item.caption ?? ""}
+                      // `alt` first, caption as the fallback: a caption is
+                      // editorial and often absent, and deriving alt from it
+                      // alone meant every uncaptioned slide shipped alt="",
+                      // claiming the screen was decorative. See GalleryItem.
+                      alt={item.alt ?? item.caption ?? ""}
                       fill
                       sizes="50vw"
                       className="object-cover"
@@ -436,7 +440,8 @@ export default function CaseStudyGallery({
               {item.image && (
                 <Image
                   src={item.image}
-                  alt={item.caption ?? ""}
+                  // Matches the desktop track above.
+                  alt={item.alt ?? item.caption ?? ""}
                   fill
                   sizes="85vw"
                   className="object-cover select-none"

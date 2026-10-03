@@ -132,7 +132,7 @@ const Reveal = ({ text, accents }: { text: string; accents?: string[] }) => (
             }`}
         >
           {word}
-        </span>
+        </span>{" "}
       </span>
     ))}
   </>

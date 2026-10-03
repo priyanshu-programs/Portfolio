@@ -43,6 +43,9 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: absoluteUrl("/sitemap.xml"),
-    host: absoluteUrl(),
+    // No `host`. It is a Yandex-only extension that Google and Bing both
+    // ignore, so it stated a host preference to almost nobody — and when the
+    // apex and www disagreed about which one served, it stated the wrong one.
+    // Canonical tags carry host preference to the crawlers that matter.
   };
 }

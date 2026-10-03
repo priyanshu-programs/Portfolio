@@ -192,6 +192,16 @@ export interface WorkProject {
 export interface GalleryItem {
   image?: string;
   caption?: string;
+  /**
+   * Alt text, separate from `caption` on purpose.
+   *
+   * A caption is editorial and often absent; alt describes what the screen
+   * shows and is what Google Images, screen readers and AI crawlers read. While
+   * the gallery derived alt from caption alone, every uncaptioned slide shipped
+   * `alt=""` — which claims the image is decorative. On a case study, where the
+   * screens *are* the content, that is the wrong claim.
+   */
+  alt?: string;
 }
 
 /** Minimal shape needed for the next-project link at the foot of a case study. */

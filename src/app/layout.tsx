@@ -55,7 +55,18 @@ const caveat = Caveat({
  */
 export const revalidate = 60;
 
-const DEFAULT_TITLE = "Priyanshu Roy";
+/**
+ * Names the service, not just the person.
+ *
+ * This was "Priyanshu Roy" — 13 characters spending the highest-weight on-page
+ * element on the site's most important page on a name nobody searches for yet.
+ * The <title> is the one place a new domain can state what it does, so it says
+ * so. Kept inside the ~60-char limit Google renders before truncating.
+ *
+ * Sanity's `siteSettings.seoTitle` still overrides this; it is the fallback for
+ * when that field is empty, and the two should say the same thing.
+ */
+const DEFAULT_TITLE = "Priyanshu Roy — Website Designer & Web Developer";
 const DEFAULT_DESCRIPTION =
   "I build modern websites and apps, emphasizing UX, micro-interactions and seamless transitions";
 
@@ -71,9 +82,13 @@ const DEFAULT_DESCRIPTION =
 export async function generateMetadata(): Promise<Metadata> {
   const content = await getSiteContent();
   const settings = content?.settings;
-  const title = settings?.seoTitle ?? DEFAULT_TITLE;
-  const description = settings?.seoDescription ?? DEFAULT_DESCRIPTION;
-  const name = settings?.name ?? "Priyanshu Roy";
+  // Trimmed because the CMS values are hand-typed: a stray trailing space in
+  // `seoTitle` shipped as `og:title: "Priyanshu Roy "` to every scraper. An
+  // empty-after-trim field falls through to the default rather than setting a
+  // blank title.
+  const title = settings?.seoTitle?.trim() || DEFAULT_TITLE;
+  const description = settings?.seoDescription?.trim() || DEFAULT_DESCRIPTION;
+  const name = settings?.name?.trim() || "Priyanshu Roy";
 
   return {
     metadataBase: new URL(SITE_URL),
@@ -118,6 +133,11 @@ export default async function RootLayout({
   const content = await getSiteContent();
   const settings = content?.settings;
   const personName = settings?.name ?? "Priyanshu Roy";
+  // The hero portrait doubles as the Person entity's image. Sanity supplies a
+  // resolved CDN URL; the local file is the same fallback Hero itself uses, and
+  // schema.org wants an absolute URL either way.
+  const personImage =
+    content?.hero?.portrait ?? absoluteUrl("/images/hero-portrait.webp");
 
   /**
    * Person and WebSite, linked by @id so crawlers read them as one graph
@@ -134,6 +154,19 @@ export default async function RootLayout({
         name: personName,
         url: absoluteUrl("/"),
         jobTitle: "Brand Designer & Web Developer",
+        image: personImage,
+        /**
+         * States the skill areas as data rather than leaving them implicit in
+         * prose. On a domain with no history, the entity's own description of
+         * what it does is one of the few authority signals available, and
+         * `knowsAbout` is the field Google reads for it.
+         */
+        knowsAbout: [
+          "Web design",
+          "Web development",
+          "UI/UX design",
+          "Brand identity",
+        ],
         ...(settings?.email ? { email: settings.email } : {}),
         ...(settings?.socials?.length
           ? { sameAs: settings.socials.map((s) => s.href).filter(Boolean) }

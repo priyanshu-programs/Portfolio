@@ -22,7 +22,7 @@ const Reveal = ({ children }: { children: string }) => (
       >
         <span className="about-reveal-inner inline-block will-change-transform">
           {w}
-        </span>
+        </span>{" "}
       </span>
     ))}
   </>

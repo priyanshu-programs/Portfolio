@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 
 export type HoverPreviewItem = {
@@ -92,6 +92,26 @@ export default function HoverPreviewCard({
   const yToRef = useRef<gsap.QuickToFunc | null>(null);
   const reduceMotionRef = useRef(false);
 
+  /**
+   * Whether the hover images have been given their `src` yet.
+   *
+   * Every project's preview used to carry its `src` from first render, so the
+   * browser downloaded all of them on page load — for a card that is invisible
+   * until the pointer enters the list, and on the home page that put a
+   * `<link rel=preload as=image>` for a never-seen image in the HTML.
+   *
+   * `loading="lazy"` does not fix it: this card is `position: fixed` inside the
+   * viewport and merely `opacity: 0`, so it intersects and the browser fetches
+   * immediately. Withholding the attribute is what actually defers the request.
+   *
+   * Primed on the first pointer move anywhere over the list rather than on the
+   * first row hover, which is earlier — the card's own 0.5s fade and the
+   * image's 0.6s slide then cover the fetch, so the first hover does not flash
+   * an empty frame. The ref guard keeps a per-move setState off the hot path.
+   */
+  const [primed, setPrimed] = useState(false);
+  const primedRef = useRef(false);
+
   const isVisible = enabled && activeIndex !== null;
   const activeBg =
     (activeIndex !== null ? items[activeIndex]?.bgColor : undefined) ??
@@ -174,6 +194,13 @@ export default function HoverPreviewCard({
     yToRef.current = gsap.quickTo(node, "y", { duration: 0.55, ease: "power3" });
 
     const handleMove = (e: PointerEvent) => {
+      // First pointer activity over the list is the cue to start fetching the
+      // previews. See `primed` above.
+      if (!primedRef.current) {
+        primedRef.current = true;
+        setPrimed(true);
+      }
+
       const { x, y } = positionFor(e.clientX, e.clientY, cardW, cardH);
       if (reduceMotionRef.current) {
         gsap.set(node, { x, y });
@@ -228,8 +255,12 @@ export default function HoverPreviewCard({
                 ref={(el) => {
                   imageRefs.current[index] = el;
                 }}
-                src={item.image}
+                // The element mounts from the first render so the GSAP refs and
+                // the park/slide timelines keep their stable targets; only the
+                // request is deferred. See `primed` above.
+                src={primed ? item.image : undefined}
                 alt=""
+                decoding="async"
                 className="absolute inset-0 h-full w-full object-cover will-change-transform"
               />
             ) : (

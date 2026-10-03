@@ -341,9 +341,29 @@ export const workProject = defineType({
               name: "caption",
               title: "Caption",
               type: "string",
+              description:
+                "Optional label printed under the slide. Not a substitute for Alt text — this is editorial, that is a description.",
+            }),
+            defineField({
+              name: "alt",
+              title: "Alt text",
+              type: "string",
+              description:
+                'What the screen shows, for Google Images, screen readers and AI crawlers — e.g. "Checkout flow on mobile, card step" rather than "screenshot". Describe the content, not the file.',
+              // A warning, not an error: a missing description should not block
+              // publishing a project. But it must be visible, because the
+              // alternative is silently shipping alt="" — which tells every
+              // crawler the screen is decorative, on the page whose entire
+              // purpose is showing the work.
+              validation: (Rule) =>
+                Rule.custom((value) =>
+                  value?.trim()
+                    ? true
+                    : "No alt text: this slide will be invisible to Google Images, screen readers and AI crawlers."
+                ).warning(),
             }),
           ],
-          preview: { select: { title: "caption", media: "image" } },
+          preview: { select: { title: "caption", subtitle: "alt", media: "image" } },
         }),
       ],
       group: "caseStudy",

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
+import JsonLd from "@/components/JsonLd";
+import { graph, webPageNode } from "@/lib/schema";
 
 const DEFAULT_TITLE = "About — Priyanshu Roy";
 const DEFAULT_DESCRIPTION =
@@ -39,8 +41,35 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function AboutLayout({
+/**
+ * ProfilePage rather than plain WebPage: this route is about a person, which is
+ * exactly what the type is for, and `openGraph.type` above already says
+ * `profile`. The `about -> #person` edge in webPageNode then makes the subject
+ * explicit instead of leaving crawlers to infer it from the copy.
+ *
+ * Safe to emit from this layout because it wraps only /about. The work layout
+ * deliberately does not do the same — it also wraps /work/[slug], so a node
+ * here would claim every case study was the /work index.
+ */
+export default async function AboutLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  const content = await getSiteContent();
+  const about = content?.about;
+
+  return (
+    <>
+      <JsonLd
+        data={graph([
+          webPageNode({
+            path: "/about",
+            name: about?.seoTitle?.trim() || DEFAULT_TITLE,
+            description: about?.seoDescription?.trim() || DEFAULT_DESCRIPTION,
+            type: "ProfilePage",
+          }),
+        ])}
+      />
+      {children}
+    </>
+  );
 }

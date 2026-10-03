@@ -47,6 +47,23 @@ const NoiseOverlay = () => (
 // Extracted to src/components/ui/KineticLoader.tsx
 
 /* ─── Word-reveal helper ──────────────────────────────── */
+/*
+ * The `{" "}` after the inner span is load-bearing for SEO, not formatting.
+ *
+ * The visible gap between words comes from `mr-[0.25em]`, which is a margin —
+ * so without a real space character anywhere, this heading's `textContent` was
+ * one run-on token: `WebsiteDesigner&WebDeveloper`. Google's text extraction,
+ * screen readers and AI crawlers all read the DOM, not the layout, so the most
+ * important keyword phrase on the site was unreadable to every one of them.
+ *
+ * The space sits INSIDE the outer span, after the inner one, deliberately:
+ * trailing whitespace in an inline-block is trimmed at render, so it adds no
+ * width and the margin still owns the spacing — pixel-identical output. Putting
+ * it between the outer spans instead would add a second gap on top of the
+ * margin, and would introduce line-break opportunities where there are none
+ * today (the heading is pre-split on `\n` into lines that are meant not to
+ * wrap).
+ */
 const Reveal = ({ children }: { children: string }) => (
   <>
     {children.split(" ").map((w, i) => (
@@ -56,7 +73,7 @@ const Reveal = ({ children }: { children: string }) => (
       >
         <span className="reveal-inner inline-block will-change-transform">
           {w}
-        </span>
+        </span>{" "}
       </span>
     ))}
   </>

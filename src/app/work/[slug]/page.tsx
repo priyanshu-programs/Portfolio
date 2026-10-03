@@ -5,6 +5,7 @@ import { getCaseStudy, getWorkSlugs } from "@/lib/sanity/getCaseStudy";
 import { getSiteContent } from "@/lib/sanity/getSiteContent";
 import { absoluteUrl } from "@/lib/siteUrl";
 import JsonLd from "@/components/JsonLd";
+import { webPageNode } from "@/lib/schema";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -100,6 +101,19 @@ export default async function CaseStudyPage({ params }: PageProps) {
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
+      /**
+       * The page, distinct from the work it documents. `mainEntity` points at
+       * the CreativeWork below, so the graph says "this URL is a page whose
+       * subject is this project" rather than leaving the two unrelated.
+       */
+      {
+        ...webPageNode({
+          path: `/work/${slug}`,
+          name: project.title ?? "Project",
+          description: project.summary,
+        }),
+        mainEntity: { "@id": absoluteUrl(`/work/${slug}#work`) },
+      },
       {
         "@type": "CreativeWork",
         "@id": absoluteUrl(`/work/${slug}#work`),
