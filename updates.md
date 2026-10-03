@@ -4,6 +4,49 @@ Newest first. One entry per unit of work. See `plan.md` for the phased plan.
 
 Entry format: what changed · files touched · how it was verified · what's next.
 
+## 2026-10-03 — Correction: the case-study date was an edit artifact in the wrong place
+
+Reverting the visible date shipped in `83af7df` and replacing it. File:
+`src/components/work/CaseStudy.tsx`.
+
+**What was wrong.** It rendered `Updated October 2026` from Sanity's `_updatedAt`, which stamps the
+last *document edit*, not the project:
+
+```
+a2-studios   year=2026  created=2026-07-27  updated=2026-10-03
+kbrs         year=2026  created=2026-07-27  updated=2026-10-03
+```
+
+Both showed the same date because that is when the gallery alt text was typed into the Studio
+earlier the same day. So both pages claimed to have been updated an hour ago, for a reason with
+nothing to do with the work — and every future typo fix would have re-stamped them identically.
+`_updatedAt` is a correct `dateModified` for machines and bad user-facing copy. It was also stacked
+as a third line in the centered hero, which crowded a deliberately sparse header.
+
+**What it is now.** The project's own `year` (`2026`), in the existing rule strip beside
+`/ Overview` — a bar that already carries metadata, so no new element enters the layout:
+
+```
+ KBRS & ASSOCIATES    2026 / OVERVIEW
+```
+
+Emitted as `<time dateTime="2026">2026</time>` so it stays machine-readable, guarded on
+`project.year` since the field is optional (`splintr` has none). The `UPDATED_FORMAT` formatter and
+its hydration-safety reasoning went with the removed string — `year` is a plain string needing no
+locale handling.
+
+`src/app/work/[slug]/page.tsx` is untouched: JSON-LD still carries `datePublished` from `createdAt`
+and `dateModified` from `updatedAt`, which is where that field's meaning is correct.
+
+Verified: `npx tsc --noEmit` and `npm run build` exit 0; against a local production server both case
+studies emit `<time dateTime="2026">2026</time>`, no visible "Updated" label remains, and JSON-LD
+still carries both date properties.
+
+**GEO impact: roughly neutral, and more honest.** Authority & brand was credited partly for visible
+recency, but a date that moves whenever any field is edited was never a real recency signal — only
+one that looked like one. The genuine lever in that dimension is still off-site presence
+(Wikipedia / Reddit / YouTube), still at zero.
+
 ## 2026-10-03 — First GEO/AEO pass: recency, extraction noise, AI-crawler declarations
 
 Scope widened by request: SEO work on this site now covers AEO/GEO and agentic readiness by
