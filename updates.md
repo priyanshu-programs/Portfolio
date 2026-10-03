@@ -4,6 +4,60 @@ Newest first. One entry per unit of work. See `plan.md` for the phased plan.
 
 Entry format: what changed · files touched · how it was verified · what's next.
 
+## 2026-10-03 — Deployed and re-audited live: 55 → ~65
+
+Pushed `210a57d` to `main`, Vercel deployed it, and re-ran the audit against the live site. Raw
+outputs in `priyanshuroy.com-audit/live/` (the `raw/` dir remains the pre-fix baseline).
+
+**Confirmed live:**
+
+| Check | Before | After |
+|---|---|---|
+| Homepage h1 `textContent` | `WebsiteDesigner&WebDeveloper` | `Website Designer & Web Developer` |
+| `/work` h1 `textContent` | `Good work takes time.These took mine.` | `Good work takes time. These took mine.` |
+| `/llms.txt` | 404 | **200, Lighthouse check passes** |
+| robots.txt `Host:` | present, naming the redirecting host | gone |
+| Case-study `lastmod` | all = build time | real `_updatedAt` (kbrs `2026-09-06`, a2 `2026-10-02`) |
+| Homepage preload hints | 9 (incl. invisible hover image) | 7 |
+| Hover preview `<img>` with `src` on load | 2 of 2 | **0 of 2** |
+| agentic_check P1 | 1 pass / 4 info | 3 pass / 2 info |
+| JSON-LD types per page | Person, WebSite | + WebPage / ProfilePage / ContactPage, `mainEntity` |
+
+**Re-score, same weights as the original audit:**
+
+| Category | Weight | Before | Now | Why it is not higher |
+|---|---:|---:|---:|---|
+| Technical SEO | 22% | 62 | 72 | Host conflict still live — Vercel redirect not flipped |
+| Content Quality | 23% | 38 | 38 | Out of scope this pass |
+| On-Page SEO | 20% | 55 | 72 | Homepage title still `Priyanshu Roy` (Sanity override) |
+| Schema | 10% | 78 | 92 | `@id`s still name the redirecting apex |
+| Performance | 10% | 50 | 58 | CWV still unmeasured; LCP hint pending measurement |
+| AI Search Readiness | 10% | 72 | 88 | Only optional items left (Content-Signal, Markdown) |
+| Images | 5% | 40 | 40 | Pipeline shipped, **no alt values entered yet** |
+| **Total** | | **55** | **≈65** | |
+
+**+10 points, and every remaining point is blocked on something I cannot do.** Note Images did not
+move at all: the schema field and render path are live, but an empty field renders the same `alt=""`
+as before. The code was only ever half of that fix.
+
+**What each remaining action is worth:**
+
+- **Flip the Vercel redirect** (apex primary, www → apex): ~+6. All six sitemap `<loc>` values still
+  return **308**, and every canonical and schema `@id` still names a host that redirects. This is the
+  one Critical finding and the single highest-value action left.
+- **Sanity `siteSettings.seoTitle`** → `Priyanshu Roy — Website Designer & Web Developer`: ~+3.
+  Verified live that the code fallback is correct and the CMS value is what overrides it.
+- **Gallery alt text** in the Studio: ~+2.8.
+- **Google API key**: unblocks measurement rather than scoring — Performance's 58 is static signals
+  only, so the real number could be higher or lower.
+
+Together those reach **≈78–81**, which is the ceiling the plan predicted for a technical-only pass.
+The gap from there to 100 is the content track.
+
+PSI remains unavailable: `PSI rate limit exceeded (240 QPM / 25,000 QPD)` on the keyless pool for
+both strategies, across two attempts hours apart. It is a shared anonymous quota, not a per-site
+limit, so a free key is the only fix.
+
 ## 2026-10-03 — SEO technical track implemented (audit findings 1–9, content track skipped)
 
 Implemented the technical half of the audit's action plan. The content work was deliberately skipped,
