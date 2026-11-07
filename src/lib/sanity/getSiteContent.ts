@@ -120,6 +120,7 @@ interface RawSiteContent {
     twoHands?: unknown;
   } | null;
   testimonials?: {
+    showSection?: boolean | null;
     items?: {
       _key?: string;
       name?: string;
@@ -229,7 +230,10 @@ function normalize(raw: RawSiteContent): SiteContent {
       : undefined,
     // An entry without a name, quote or resolvable photo can't fill a card,
     // so it's dropped rather than rendered half-empty.
-    testimonials: raw.testimonials?.items
+    // "Show section" off in Studio hides the whole section (empty list).
+    testimonials: (raw.testimonials?.showSection === false
+      ? []
+      : raw.testimonials?.items)
       ?.map(
         (t, i): TestimonialItem => ({
           key: t._key ?? String(i),

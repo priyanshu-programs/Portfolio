@@ -11,6 +11,14 @@ export const testimonials = defineType({
   type: "document",
   fields: [
     defineField({
+      name: "showSection",
+      title: "Show section",
+      type: "boolean",
+      description:
+        "Turn off to hide the whole Testimonials section on the site. Entries are kept.",
+      initialValue: true,
+    }),
+    defineField({
       name: "items",
       title: "Testimonials",
       type: "array",
@@ -83,5 +91,11 @@ export const testimonials = defineType({
       ],
     }),
   ],
-  preview: { prepare: () => ({ title: "Testimonials Section" }) },
+  preview: {
+    select: { show: "showSection" },
+    prepare: ({ show }) => ({
+      title: "Testimonials Section",
+      subtitle: show === false ? "Hidden on site" : "Shown on site",
+    }),
+  },
 });

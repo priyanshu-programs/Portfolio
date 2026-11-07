@@ -35,6 +35,7 @@ export const siteContentQuery = /* groq */ `{
     cards[]{ title, copy, iconKey }
   },
   "testimonials": *[_type == "testimonials"][0]{
+    showSection,
     items[hidden != true]{
       _key, name, role, company, quote, photo,
       "video": video.asset->url

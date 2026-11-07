@@ -97,6 +97,18 @@ Common Crawl graph — some of this is simply time.
 
 ---
 
+## 2026-11-07 — Testimonials: "Show section" toggle in Studio
+
+- **What:** New `showSection` boolean (default on) on the Testimonials Section singleton. Off hides
+  the whole home-page section without deleting entries; the document preview reads "Shown on site" /
+  "Hidden on site".
+- **Files:** `sanity/schemas/testimonials.ts`, `src/lib/sanity/queries.ts` (projects `showSection`),
+  `src/lib/sanity/getSiteContent.ts` (returns `[]` when it's `false`, so `Testimonials.tsx` renders nothing).
+- **Verified:** `tsc --noEmit` clean; `npx sanity deploy` succeeded → priyanshuroy-portfolio.sanity.studio.
+- **Next:** the site code still needs a commit + push for Vercel before the toggle has any effect live.
+
+---
+
 ## 2026-11-07 — Testimonials Studio deployed, site pushed
 
 **What changed.** The owner ran `npx sanity login` (account owning `i0fv16h3`), then
