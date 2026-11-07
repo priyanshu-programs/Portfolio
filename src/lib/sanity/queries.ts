@@ -34,6 +34,12 @@ export const siteContentQuery = /* groq */ `{
     heading, ornament, landscape,
     cards[]{ title, copy, iconKey }
   },
+  "testimonials": *[_type == "testimonials"][0]{
+    items[hidden != true]{
+      _key, name, role, company, quote, photo,
+      "video": video.asset->url
+    }
+  },
   "cta": *[_type == "ctaCollage"][0]{
     headline, revealHeadline, linkText,
     collage, handLeft, handRight, twoHands

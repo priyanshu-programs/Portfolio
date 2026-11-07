@@ -97,6 +97,727 @@ Common Crawl graph — some of this is simply time.
 
 ---
 
+## 2026-11-07 — Testimonials Studio deployed, site pushed
+
+**What changed.** The owner ran `npx sanity login` (account owning `i0fv16h3`), then
+`npm run sanity:deploy` rebuilt priyanshuroy-portfolio.sanity.studio with the `testimonials`
+schema ("Deployed 1/1 schemas"). The testimonials code was committed and pushed to `main`, so
+Vercel deploys it. The content itself was already in the dataset from the seed run below.
+
+**Files.** Everything listed in the entry below, plus `.trail/learnings/`. Left uncommitted on
+purpose: `.claude/settings.json` (trail hook), `geo-research/`, the rest of `.trail/`.
+
+**Verified.** `sanity projects list` shows i0fv16h3. Deploy printed success. `tsc --noEmit`,
+eslint and `trail check` (no conflicts) were all clean before the commit.
+
+**Next.** Swap the 8 placeholder testimonials for real ones in the hosted Studio.
+
+---
+
+## 2026-11-07 — Testimonials come from Sanity
+
+**What changed.**
+- **Schema:** new singleton `testimonials` ("Testimonials Section" in the Studio), with one ordered
+  `items` array. Each entry has name, role, company, quote, photo (hotspot) and an optional video
+  file, plus a `hidden` toggle that takes it off the site without deleting it.
+- **Data:** `siteContentQuery` fetches `items[hidden != true]` with `video.asset->url`.
+  `getSiteContent` resolves photos at 800px and drops entries missing a name, quote or photo. The
+  existing `/api/revalidate` webhook already covers every document, so edits go live without
+  extra wiring.
+- **Component:** the hardcoded Lorem/Unsplash `TESTIMONIALS` is gone. Cards come from
+  `useSiteContent()?.testimonials`, and an entry with a video gets a working "Watch video". With
+  no visible entries the section isn't rendered. **Short lists:** a marquee copy narrower than the
+  viewport leaves a gap at the loop point, so lists under 6 are repeated up to 6 per copy. The
+  repeats are `inert`/`aria-hidden` and carry `.tm-fill`, which the strip-mode media query hides
+  next to `.tm-copy-dup`. Marquee duration now scales with the padded card count.
+- **Seed:** `npm run sanity:seed-testimonials` uploaded the 8 placeholder portraits and wrote the
+  doc with `createIfNotExists`, so re-runs never touch Studio edits. It's kept out of `seed.mts`,
+  whose `createOrReplace` would wipe them.
+
+**Files.** `sanity/schemas/testimonials.ts` (new), `sanity/schemas/index.ts`,
+`sanity/structure.ts`, `src/lib/sanity/{queries,types,getSiteContent}.ts`,
+`src/components/sections/Testimonials.tsx`, `src/app/globals.css`,
+`scripts/sanity/seed-testimonials.mts` (new), `package.json`.
+
+**Verified.** `tsc --noEmit` and eslint are clean. The seed ran: 8 entries, and a re-run reported
+"already exists" and changed nothing. The site query returns all 8 with photos. The home page SSR
+on :3001 renders all 8 Sanity portraits and no Unsplash URLs. Not yet seen in a browser: the
+short-list padding, the empty state and video playback.
+
+**Next.** The hosted Studio isn't redeployed yet because `sanity deploy` needs `npx sanity login`
+first. Until then, the section can be edited in the local Studio (`npm run sanity`). Then replace
+the placeholders with real testimonials.
+
+---
+
+## 2026-11-04 — Testimonials heading: Medium weight, and real spaces between words
+
+**What changed.**
+- **Weight:** the owner wanted the heading bolder. It's now Manrope 500 (Medium, the heaviest
+  weight `layout.tsx` loads) with -0.01em tracking, up from the Light 300 it shared with
+  Services. The size is unchanged, still the Services size.
+- **Real spaces:** the words were separate spans with only `mr-[0.25em]` between them, so the
+  heading's text had no spaces at all. Copying, crawlers and `textContent` all got
+  "I'llstoptalking.They'll…". Each word's wrapper now ends with a `{" "}`, the pattern `Hero.tsx`
+  already uses. Trailing whitespace inside an inline-block adds no width, so the margin still
+  sets the gap and the layout doesn't move by a pixel.
+- **Other headings:** every other per-word reveal heading (`Hero`, `NotFoundStage`, `AboutWork`,
+  `AboutStage`, `ContactStage`, `CtaCollage`) already had the `{" "}`. Testimonials was the only
+  one missing it.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file is clean. Headless Chrome on the dev server (:3000) reports
+`textContent` = "I'll stop talking. They'll take it from here." and a computed weight of 500. In the
+screenshots, 1600px is two lines with word spacing that looks unchanged, and 390px still breaks as
+"I'll stop talking. / They'll take it / from here.".
+
+**Next.** Unchanged: real testimonials, then move them into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials heading: "I'll stop talking. / They'll take it from here."
+
+**What changed.** The owner asked for heading copy in their own voice, and I offered 10 options.
+They picked "I'll stop talking." with the second line, "They'll take it from here.", in muted
+`#858EA3`. It's first person and dry, it hands the floor to the quotes, and it keeps the owner on
+equal footing with clients ("built for" was rejected earlier as servile). "from here." is a single
+word span, so on phones the muted line wraps as "They'll take it / from here." and doesn't leave
+"here." alone on a line. The size, the word reveal and the "Start a project" link are unchanged.
+
+Options not picked, kept for later: No templates. / No regrets. · Skip my pitch. / Read theirs. ·
+Ask the people / who hired me. · Said after launch, / not in the pitch. · Good work / gets talked
+about. · Then they launched. / Here's how it went. · Months later, / still glad they did. · The
+work, / in their words. · Don't take my word. / Take theirs.
+
+**Files.** `src/components/sections/Testimonials.tsx` (the `HEADING` array and its comment).
+
+**Verified.** `npx eslint` on the file is clean. Headless Chrome on the dev server (:3000):
+- **1600px:** two lines, with the link right-aligned on the bottom line.
+- **390px:** "I'll stop talking." fits on one line, and the muted line breaks as "They'll take it /
+  from here.".
+
+**Next.** Unchanged: real testimonials, then move them into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: marquee fades out across the page gutter
+
+**What changed.** The full-bleed card row now fades to transparent at both screen edges. The fade
+runs exactly the width of the page gutter (`--tm-gutter`, the same `clamp(1.5rem, 11.67vw, 13rem)`
+the heading uses), so cards are fully visible only between the heading's left edge and the
+"Start a project" link's right edge. It's a `mask-image` gradient on the still `.tm-marquee-wrap`,
+not on the moving `.tm-marquee` track. So it works on any background and fades the card shadows
+too. Strip mode (phones, reduced motion) gets the same mask. Each copy already has gutter padding,
+so the first card is fully visible at rest, and cards fade only as they're swiped past the edges.
+
+**Files.** `src/app/globals.css` (new `.tm-marquee-wrap` mask rule),
+`src/components/sections/Testimonials.tsx` (header comment only).
+
+**Verified.** `npx eslint` on the component is clean. Headless Chrome on the dev server (:3000):
+- **1600px:** the mask is opaque from 186.72px to `100% − 186.72px`. The heading's left edge is
+  186.72px and the link's right edge is 1413.28px, so the fade lines up with both. In the
+  screenshot, edge cards fade smoothly to nothing.
+- **390px (strip):** a 45.5px fade, the same as the heading's left edge. The first card sits fully
+  opaque, and the peeking second card fades out on the right.
+
+**Next.** Unchanged: real testimonials, then move them into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: "What clients say after launch", and a Start a project link
+
+**What changed.**
+- **Heading copy:** the owner felt "Remembered by the people I've built for" made them sound like
+  they serve their clients. It is now "What clients say / after launch", with the second line in
+  muted `#858EA3`. The heading is still the Services size, Manrope 300, on the gutter. The line
+  break now applies at every width, because the shorter first line fits on phones.
+- **Right side:** the `(08)` count is replaced by a "Start a project →" link to `/contact`. It is
+  styled like the cards' "Watch video" (clamp(15–18px), Manrope 500, the arrow nudges right on
+  hover, a focus outline) and rises with the heading's word reveal.
+- **Phones (below sm):** the header row stacks, with the link under the heading. Side by side,
+  the link had squeezed the heading into four ragged lines.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` are clean. Headless Chrome on the
+dev server (:3000):
+- **1600px:** a two-line 40.8px heading. The 18px link is right-aligned on the heading's bottom line.
+- **1280px:** 32.6px heading, 15px link.
+- **390px:** a two-line 31px heading with the link below it.
+- **All widths:** the link's href is `/contact`, and the marquee still runs (it's off on phones by
+  design).
+
+**Next.** Real testimonials (company, quote, photo or video), then move them into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: site-scale heading row, closing line removed
+
+**What changed.** The owner said the heading was too big, the closing line added nothing, and the
+section should look like the rest of the site, with the cards staying big as in the reference.
+Shrinking only the heading had made the section look small. At the Services size the heading
+(≈41px at 1600) was barely bigger than the card quote (≈30px) and wordmark (≈32px), so nothing led.
+The fix restores the steps between sizes and lets the cards carry the section's scale:
+- **Header row:** the heading sits on the page gutter, left-aligned, with a muted `(08)` count
+  right-aligned on its baseline (the "Recent work (n)" pattern). It is exactly the Services heading
+  size (31 / sm:42 / lg:clamp(28px,2.55vw,48px*fluid)), Manrope 300, with "I've built for" in
+  `#858EA3`. The line break after "people" applies only from lg up. The count reveals with the words.
+- **Card text:** wordmark clamp(24–34px) → clamp(17px,1.25vw,22px*fluid); quote clamp(22–32px) →
+  clamp(20px,1.45vw,26px*fluid). Card and portrait sizes are unchanged (~640px card, 320×400
+  portrait at 1600).
+- **Closing line removed** (`CLOSING`, its markup, and its GSAP step).
+- **Rhythm:** the section padding went from py clamp(96–200px) to pt clamp(80–144px) and
+  pb clamp(48–96px). The heading-to-row gap now starts at 24px.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` are clean. Measured with headless
+Chrome on the dev server (:3000), scrolled with the wheel:
+
+| Width | Heading | Quote | Wordmark |
+|---|---|---|---|
+| 1600px | 40.8px (weight 300) | 23.2px | 20px |
+| 1280px | 32.6px | 20px | 17px |
+| 390px | 31px, 3 clean lines | — | — |
+
+- **1600px:** the section is 877px tall.
+- **All widths:** the count's bottom edge lines up with the heading's, and the marquee still runs
+  (it's off on phones by design).
+
+Screenshots show nothing under the cards and the shadows uncut.
+
+**Next.** Real company names or logo SVGs, quotes and videos, then move them into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: marquee CSS restored after a partial rollback
+
+**What changed.** The section was broken. `Testimonials.tsx` had been rolled back to the v5
+marquee of cards, but `globals.css` was still on the later v6 rebuild (one quote at a time), which
+had deleted the CSS v5 needs. The row didn't move, the inert duplicate copy was visible, and phones
+got a clipped row where only the first card could be reached. The owner chose to keep v5, so:
+- **`globals.css`:** restored `.tm-marquee` (reuses `@keyframes marquee`, `--tm-duration`), pausing
+  on hover, focus and `[data-paused]`, the `.tm-copy` trailing gap, and the strip-mode media query
+  for phones and reduced motion (a native swipe strip with snap, the gutter as padding,
+  `.tm-copy-dup` hidden). Removed the unused v6 `tm-swap` keyframes and class.
+- **Portraits:** the first copy now loads eagerly. Lazy loading got almost no look-ahead inside
+  the clipped, drifting row, so each card arrived as a blank tint block and its photo popped in.
+  The duplicate copy stays lazy and hits the cache.
+
+**Files.** `src/app/globals.css`, `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` are clean. Headless Chrome
+(playwright-core) on the dev server (:3000), scrolled with the wheel:
+- **1600px:** the animation runs at 56s and the row moves about 113px in 1.2s. Hovering the row
+  stops it.
+- **390px:** no animation. The row is an `overflow-x: auto` strip with x-mandatory snap. The first
+  card sits 46px in, on the gutter. The duplicate copy is hidden. Scrolling moves it 316px.
+- **Reduced motion at 1600px:** the same strip, and nothing drifts.
+- **Images:** all 8 first-copy portraits had loaded within 1.5s. Before the change, cards past the
+  right edge were still empty.
+
+**Next.** Unchanged: real company names and logos, quotes, videos and closing copy, then move them
+into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: type hierarchy matches the owner's reference
+
+**What changed.** The section now follows the type hierarchy of the reference the owner shared.
+- **Heading:** reference scale, `clamp(48px,5vw,88px)` from lg (80px at 1600px), 56px at sm, 36px
+  on phones. Manrope 500, one ink colour (the grey emphasis words are gone). It is now
+  **bigger than the Services heading**, which reverses the earlier "same size as Services"
+  decision at the owner's request.
+- **Card text panel, top to bottom:** a company wordmark (24–34px, Manrope 500), then the quote
+  (22–32px, Manrope 400), then name and role (13px) straight under the quote, and "Watch video →"
+  (15–18px, Manrope 500) pinned to the bottom.
+- **Play badge** (44–60px) at the portrait's bottom-left. It and "Watch video" now show on
+  **every** card. They are real buttons on `{type:"video"}` entries and non-interactive
+  `aria-hidden` marks on image entries, so there are no dead controls.
+- **Card surface:** a gradient from `#FFFCFA` to the tint, with a soft shadow. The track has extra
+  vertical padding so `overflow-hidden` doesn't clip the shadow.
+- **Closing line:** a new centred line under the row (placeholder copy: "Join the founders and
+  teams who stopped settling for forgettable work"), revealed with the rest of the timeline.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` are clean. Headless Chromium
+screenshots of the dev server (:3000) at 1600, 1280 and 390px, scrolled with the wheel so the
+reveal runs. At 1600px the heading is 80px and the quote 30.4px (≈2.6:1, as in the reference). On
+phones the heading wraps to three clean lines, the cards stack, and the shadow isn't clipped.
+Browser MCP was paused, so I didn't check marquee hover-pause by hand.
+
+**Next.** Real company names (or logo SVGs in place of the text wordmark), quotes and videos, and
+real closing-line copy. Then move all of it into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: phones get a swipeable strip of stacked cards
+
+**What changed.** On phones (below `md`, 768px), the v4 marquee had four problems:
+- the card was about 432px wide, more than a 375px screen
+- the row couldn't be swiped
+- a card crossed the screen in about 6s
+- pausing depended on sticky hover
+
+Below `md`, each card now stacks (photo on top at 5:4, text below) at `78vw`, capped at 340px. The
+auto-scroll is off and the row is a native horizontal strip that snaps to each card. The first card
+lines up with the heading's gutter, and the duplicate marquee copy is hidden.
+
+Reduced motion gets the same strip mode at every width, so it no longer shows every card twice. From
+`md` up nothing changed. The copy padding moved from an inline style to `.tm-copy` in CSS, so strip
+mode can override it. The section now sets `--tm-gutter` and `--tm-gap` inline.
+
+**Files.** `src/components/sections/Testimonials.tsx`, `src/app/globals.css`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` are clean, and `GET /` returns 200. Not
+checked visually: Browser MCP was paused.
+
+**Next.** In Chrome device mode at 375 and 390px, check:
+- the cards stack and snap
+- the next card peeks in from the right
+- there's no sideways page scroll
+
+Also check that 768px and up still runs the marquee.
+
+---
+
+## 2026-11-04 — Testimonials v4: centred heading over an auto-scrolling row of duotone cards
+
+**What changed.** Replaced the rotating queue (one large portrait, two thumbnails, quote, arrows)
+with a layout taken from a reference the owner shared. The heading is now centred, still at the
+Services heading size. Below it, a full-bleed row of cards drifts left on a loop. Each card has a
+pale tinted background and two panels:
+- text: company, a one-line quote, name, and role in #858EA3
+- a 4:5 portrait
+
+The portrait is duotoned in CSS (grayscale photo, a tint layer with `mix-blend-mode: color`, and a
+pale lighten layer), with tints cycling through peach, teal, lavender and sand. Video entries get a
+round play button and a "Watch video →" link. Pressing either mounts a `<video>` over the portrait
+and pauses the row until the video ends or is closed. All placeholders are images, so none show yet.
+
+How the row works: the track holds two copies of the list and uses the existing `marquee` keyframes
+(translate -50%). The second copy is `inert` and `aria-hidden`. Hover, keyboard focus and a playing
+video pause the row. Reduced motion stops it and makes the row scroll by hand. The duration is 7s
+per card (56s for 8).
+
+The long lorem body text is gone, and `role` was split into `role` and `company`.
+
+**Files.** `src/components/sections/Testimonials.tsx` (rewritten), `src/app/globals.css` (`.tm-marquee` rules next to `@keyframes marquee`).
+
+**Verified.**
+- `npx eslint` on the file and `npx tsc --noEmit` are clean.
+- `GET /` on the dev server returns 200, and the HTML contains the heading, the marquee track, one
+  `inert` copy and `--tm-duration:56s`.
+- Not checked visually: Browser MCP was paused.
+
+**Next.** In the browser, at about 1440, 1024 and 375px, check:
+- the loop has no seam
+- hover and focus pause the row
+- the tints look right on real photos
+- there's no horizontal page scroll
+- the row is static under reduced motion
+
+Add a real video entry to exercise the play path.
+
+---
+
+## 2026-11-04 — Testimonials: heading matches the Services heading size
+
+**What changed.** The testimonials heading now uses the exact size of the Services heading ("Your
+website is the first impression…"): `31px` / `sm:42px` below lg, and
+`clamp(28px,2.55vw,calc(48px*var(--fluid-scale)))` from lg up (was `clamp(40px,4.4vw,72px)`). To
+keep the proportions, the pull quote went from `clamp(22px,2vw,34px)` to `clamp(20px,1.65vw,28px)`
+so it stays smaller than the heading, and the heading-to-carousel gap went from
+`clamp(56px,6vw,96px)` to `clamp(40px,4vw,64px)`. Portraits, caption and body are unchanged.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` are both clean. Not checked visually.
+
+**Next.** Look at it in the browser at about 1440px, 1024px and 375px.
+
+---
+
+## 2026-11-04 — Testimonials: all caps dropped
+
+**What changed.** Removed `uppercase` from the three places in the testimonials section that had it:
+the name and role caption, the quote lines and the body paragraph. Each now renders in the case it
+is written in. Sizes, weights and leading are unchanged.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file is clean, and no `uppercase` is left in the file. Not checked
+visually: Browser MCP was paused.
+
+**Next.** Look at it in the browser. The 12px caption and 13px body were sized for all caps, so
+they may need a size or tracking adjustment now that they're mixed case.
+
+---
+
+## 2026-11-04 — Testimonials: side margins match Recent work
+
+**What changed.** The testimonials section now uses the same fluid side padding as the homepage
+"Recent work" block (`clamp(1.5rem, 11.67vw, 13rem)`, from `AboutWork.tsx`). The old
+`px-6 sm:px-10` padding and the centred `max-w-[1200px*fluid-scale]` wrapper are gone, so on wide
+screens the section is no longer narrower than the one above it. Grid, stage geometry and GSAP
+targets are unchanged.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `npx eslint` on the file and `npx tsc --noEmit` both clean. On the running dev server
+(:3000) at 1536px wide, the Recent work heading and rows and the testimonials heading and figure all
+span the same 179.25px to 1356.75px. Screenshot checked.
+
+**Next.** Real testimonial copy and photos (still Lorem and Unsplash), then move them into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials v3: no counter or progress line, colour photos, arrows under the thumbnails
+
+**What changed.**
+- Removed the `01 / 08` counter, the progress line and the "Kind words" eyebrow. The eyebrow tween is gone from the reveal, so the heading words now start at 0.
+- Removed the `grayscale` filter, so portraits show in colour.
+- The ← → arrows moved from a row under the portrait into the stage, directly under the thumbnails. That puts them with the queue they control, in the empty space above the name. The user chose this placement from three options: under the thumbnails, at the end of the quote, or beside the heading.
+- Added sr-only text, "Testimonial n of N", inside the `aria-live` caption, so screen readers still know their position without the visual counter.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `tsc` and `eslint` pass. The rendered HTML on :3001 has no eyebrow, counter or grayscale, and does contain the arrows and the sr-only text. No visual browser check yet (Browser MCP paused).
+
+**Next.** As below.
+
+---
+
+## 2026-11-04 — Testimonials v2: rotating queue for any number, rounded cards, video, scroll reveal
+
+**What changed.** `Testimonials.tsx` was rewritten to handle many testimonials (8 Lorem Ipsum entries now).
+- **Rotating queue:** each entry has one always-mounted box with slot `(i − active + N) % N`. Slot 0 is the large frame, 1–2 are thumbnails, N−1 waits hidden behind the large frame (so "previous" fades back in place), and the rest queue hidden to the right. Changing `active` re-slots the boxes, and CSS transitions do the glide (geometry 850 ms; opacity 380 ms, so hidden-bound boxes vanish before they cross anything).
+- **Controls:** ← → buttons, a `01 / 08` counter and a progress line. Arrow keys work inside the carousel, and swiping (over 40 px) steps through.
+- **Rounding:** 8px on the large frame, 6px on thumbnails, and the radius animates during the glide.
+- **Video:** `media` is either `{type:"image"}` or `{type:"video", src, poster}`. A `<video preload="none">` mounts only in the large frame behind a frosted play button. Leaving the frame unmounts it, which stops it, and everywhere else shows the poster.
+- **Scroll-in reveal:** one timeline, `start: "top 72%"`, plays once. Eyebrow fade, then the heading words rise out of masks (AboutWork's values). The portrait and thumbnails wipe up from the bottom with a 1.15→1 zoom (AboutAchievements' values, using `inset() round` so the corners stay rounded). Then the quote lines rise, and the caption, body and controls fade in.
+- **Text swaps** use the same masked line rise. Reduced motion gets no animation.
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.**
+- `tsc --noEmit` and `eslint` pass.
+- The server-rendered HTML from this site's dev server (**:3001**; :3000 on this machine is the unrelated `pujogo` app) contains the section between Services and the CTA, with the carousel region and controls.
+- The video path was typechecked with a temporary MDN sample entry, then reverted.
+- **Not visually checked in a browser:** Browser MCP was paused. The dev log has GSAP "Invalid scope" warnings from 01:03, before this rewrite, with the source not identified.
+
+**Next.** A visual check: the reveal order, the queue wrapping 08→01, swiping at 390 px, and both neighbouring pins. Then real testimonials and photos/videos, and move the data into Sanity.
+
+---
+
+## 2026-11-04 — Testimonials: portraits glide between slots; placeholder photos
+
+**What changed.** The three portraits are now one set of absolute boxes, each keyed to its
+testimonial and assigned a slot (large or thumbnail). Clicking a thumbnail changes only the slots,
+so the same node glides and resizes into place: a CSS `left/width/height` transition, 850 ms,
+`cubic-bezier(0.76,0,0.24,1)`. Thumbnails sit slightly zoomed and dimmed and settle on hover. The
+text cross-fades on its own `shown` state, so the boxes start moving at once. Placeholder grayscale
+Unsplash portraits are in (host already allowed in `next.config.ts`; URLs checked to return 200).
+
+**Files.** `src/components/sections/Testimonials.tsx`.
+
+**Verified.** `tsc --noEmit` and `eslint` pass. A visual check is still pending: Browser MCP was paused.
+
+**Next.** Same as below.
+
+---
+
+## 2026-11-04 — Home: testimonials section between Services and the CTA collage
+
+**What changed.** New `Testimonials` section on `/`, placed after the Services deck and before
+"no more forgettable work". The layout follows an editorial reference: eyebrow, two-line heading, a
+large portrait with two thumbnail buttons that swap the active testimonial (GSAP blur crossfade,
+instant under reduced motion), name and role, then an indented all-caps pull-quote and body. It's
+Manrope only, by the user's choice (no serif added). Emphasis uses the muted `#858EA3`, the same
+treatment as the Services heading. The heading copy is real ("Kind words" / "Remembered by the
+people I've built for", written to lead into "no more forgettable work"). The three testimonials
+are Lorem Ipsum, and the portraits are `#E9E6E2` placeholder blocks until `image` is set. It
+renders in one DOM tree with no mobile duplicate, uses `<figure>/<blockquote>/<figcaption>`, and
+isn't pinned.
+
+**Files.** `src/components/sections/Testimonials.tsx` (new), `src/app/page.tsx`.
+
+**Verified.** `tsc --noEmit` and `eslint` pass. Not yet visually checked: Browser MCP was paused.
+
+**Next.** A visual check at 1440 and 390 px, including that the Services pin and the CtaCollage pin
+still sit cleanly either side. Then real testimonial copy and grayscale photos, then Sanity fields
+(merge by index as in Services). This starts backlog item #4 (E-E-A-T).
+
+---
+
+## 2026-10-08 — GEO study Phase C: REPORT.md written; the backlog's off-site item was aimed wrong
+
+`geo-research/REPORT.md` is written — all 22 protocol sections, all six required tables, with
+OBSERVED / INFERENCE / RECOMMENDATION kept visibly separate. No site code touched; this is still
+research only. Composite GEO diagnostic: **34/100 now, 68 realistic target** (not an OpenAI score —
+an internal framework). The target stops at 68 because authority and third-party validation are
+gated on juries, clients and time, and the domain is six days old.
+
+**The correction that matters most.** The standing backlog's off-site item (#5) pointed at YouTube,
+Reddit and Wikidata, ranked from general correlation research. **Across nine captures, not one of
+those three was retrieved or cited even once.** What ChatGPT actually reached for, repeatedly:
+Awwwards (6×), CSS Design Awards (6×), Clutch (4×), Behance (3×), LinkedIn (3×), Dribbble, DesignRush,
+Framer Experts — and individual designers' own portfolio domains, cited directly as evidence. Same
+effort, far better aim.
+
+**Two P0 items that were not on the backlog at all:**
+
+- **State India and Kolkata.** All four observed discovery queries are geo-scoped; B02 shows ChatGPT
+  read the entire site and could not say where he is.
+- **State independence and availability.** ChatGPT quotes rivals' *"available for freelance"* lines
+  verbatim; B02 had to hedge his business structure because the site never says.
+
+Both are one honest sentence each. Neither requires a claim that isn't already true.
+
+**Promoted:** E-E-A-T (was #4 → P0/P1) — "who will design versus who will develop" was demanded in
+**4 of 4** intent captures, and outcomes in 3 of 4. Both case studies state neither.
+**Held:** thin pages (was #1 → P1) — still real, but word count doesn't fix an entity ChatGPT can't
+place or categorise. **Unchanged:** `/services` page P2, Google API key P3.
+
+**Protocol §22 enforced:** no qualifying design recognition exists, so "award-winning" is recommended
+nowhere in site copy. Award language in the generated queries is what ChatGPT searches *for*, not a
+licence to assert it — and the study observed ChatGPT hedging rivals' self-asserted award claims
+precisely because they are self-asserted.
+
+**Protocol §23 settled against a Kolkata page.** City-level intent returns a local pack — ratings,
+street addresses, phone numbers, a map. A portfolio page does not compete there. Kolkata belongs on
+the site as entity disambiguation, not as a landing page.
+
+**Attempted and failed:** a clean memory-free baseline. Temporary chat still references memory by its
+own banner; the header's Unpersonalized toggle would not switch across three attempts (coordinate,
+accessibility ref, keyboard) and the renderer began timing out, so it was abandoned per the run's
+stop conditions. **B01 therefore remains invalid as a neutral baseline.** It is a one-minute manual
+job: header dropdown → Unpersonalized → re-run B01 and B02.
+
+Files: `geo-research/REPORT.md` (new), `geo-research/raw/_capture-log.md`, `updates.md`.
+
+Verified: every recommendation in the report names its evidence — a raw file id, an audit section
+letter, or an explicit INFERENCE label. Claims that could not be traced were cut. The one
+low-confidence query transcription (P10) is flagged unusable-as-evidence pending re-capture.
+
+Next, in order: (1) the unpersonalized B01/B02 re-run; (2) the P0 copy and schema changes, which are
+a separate approved pass since this one was research-only; (3) re-test B02 for location, then B01 for
+retrieval — measured as frequency across repeated runs, because P03 run three times gave three
+near-disjoint rosters and single runs prove nothing.
+
+## 2026-10-08 — GEO study Phase A: ChatGPT fan-out pilot captured (6/6) + prior sessions recovered
+
+Phase A of the ChatGPT Search fan-out study finally ran. `geo-research/prompts.json` (the design) and
+`geo-research/site-audit.md` (Phase B) were already done from an earlier session; the live capture
+was the missing half. `REPORT.md` is still **not** written — this entry covers raw data only.
+
+**Six pilot prompts captured**, each in a fresh conversation, submitted verbatim with web search
+explicitly enabled, on the user's own authenticated ChatGPT session: P03, P01, P05, P10, B01, B02.
+Plus four prior conversations from 2026-10-07, opened with the user's authorisation.
+
+**The extraction ladder mostly failed, for a documented reason.** L1 (`/backend-api/conversation/…`)
+returns 404 to a cookie-only fetch — the page's own identical request returns 200, so the API wants a
+bearer token, and the protocol forbids touching session tokens. L2 is structurally impossible:
+`read_network_requests` exposes no response bodies. The assistant message now renders in a
+**cross-origin iframe** (`cdn.platform.openai.com/deployments/dil/v14/runner.html`), so citation
+hrefs and any search disclosure are unreachable from the top frame.
+
+**What worked:** rung L3-streaming — a full-resolution zoom on the transient status line within ~4s
+of submit. It renders the generated query *sometimes* (P10, B02) and a bare site count other times
+(P01, P05: "Searching 12 websites").
+
+**Four findings that matter more than the queries:**
+
+1. **The site is readable; it is never reached.** B02 proves ChatGPT parses priyanshuroy.com
+   accurately when handed the domain — positioning, all three services, both case studies. It
+   appeared in none of the four intent prompts, and not even in B01's search for the entity's own
+   name, where the web returned a LinkedIn profile instead. **Discovery and corroboration are the
+   bottleneck, not crawlability** — which means the "technical track is finished" line in the
+   backlog above is correct, and the remaining work really is off-site.
+2. **ChatGPT cannot place him.** B02 read the entire site and never stated a location. Corroborates
+   `site-audit.md` §B: "India" appears zero times sitewide.
+3. **The roster is volatile; the framework is stable.** P03 has now been run three times across two
+   days and produced three near-disjoint sets of names — one of nineteen recurs. What is identical
+   every time: independent/boutique over agency, live shipped work over claims, awards as a
+   *discovery index*, and an explicit demand to know who designs versus who develops. The site
+   states none of those last two.
+4. **City-level intent is a local pack.** "best web designers in kolkata" returned Google-style
+   business listings — ratings, review counts, street addresses, phones, a map — not portfolios.
+   This settles protocol §23 **against** a Kolkata landing page chasing local intent.
+
+**Also recovered:** three real `search_model_queries`, verbatim, that the user had extracted by hand
+from DevTools on 2026-10-07. All three contain India, all three carry an award signal, two contain
+"portfolio", one contains "freelance" unprompted, one contains the year 2026.
+
+**Caveat that limits everything above:** the account has memory/personalization active. B01's status
+line read *"Distinguishing **your** Priyanshu from public figures"* and the answer opened *"based on
+our conversations, you're Priyanshu Roy"*. **B01 is invalid as a neutral baseline** and needs a
+logged-out re-run.
+
+Files: `geo-research/raw/{P01,P03,P05,P10,B01,B02}.json`, `geo-research/raw/_capture-log.md`,
+`geo-research/raw/_prior-session-6ac60351.md`,
+`geo-research/raw/_prior-session-queries-and-local.md`. No site code touched.
+
+Verified: every pilot id has a raw file recording its conversation id, extraction rung and outcome;
+queries are stored with explicit confidence levels and the one low-confidence transcription is
+flagged as needing re-capture before use. Nothing was inferred into a gap.
+
+Next: Phase C — `geo-research/REPORT.md`. Before that, two cheap things worth doing: a logged-out
+B01/B02 re-run for a clean baseline, and the user's own DevTools extraction on a few prompts, which
+yields the whole `search_model_queries` block in a minute per prompt where the agent's tools cannot.
+
+## 2026-10-05 — Dossier stage 0: new repo, 9-table schema, single-address auth
+
+Comp AI CRM is **abandoned in place** (not deleted — it stays as a behavioural reference). Rather
+than attach a card to Vercel, we are building a replacement: **Dossier**, at
+`1abc- Proj/dossier`, own git repo, first commit `1909fe8`. Full plan in
+`~/.claude/plans/trynna-get-started-with-validated-beaver.md`.
+
+Same core loop — Gmail in, researched contacts out — with Comp AI's enterprise surface (deals,
+Slack, SSO, custom fields, agent builder) cut. 9 tables against their 61. Hard constraint: no money
+anywhere. Groq free tier for the model, Neon free for Postgres, Vercel free for hosting only, own
+scraper instead of Context.dev, GitHub Actions cron instead of Vercel cron (Hobby cron is capped at
+**once per day**, which would make the worker useless).
+
+**Shipped.** Next 16.2.6 + React 19 + Prisma 7 + Auth.js v5. A new `dossier` database inside the
+existing Neon project; init migration applied; 9 tables confirmed by SQL. Sign-in is one Google
+account, enforced in the `signIn` callback against `ALLOWED_EMAIL` — Gmail's read scope is requested
+at sign-in so there is no second "connect your inbox" consent later.
+
+`ContactFact` is the table the project exists for: every claim carries verbatim `evidence`, a
+confidence `score`/`band`, the `method` that produced it and a `sourceUrl`, and is **superseded
+rather than updated**, so the history of what the agent believed stays readable. Comp AI's
+`EmailThread` + `EmailMessage` + `CalendarEvent` + `CalendarAttendee` collapse into one `Activity`
+table with a `meta` JSON column.
+
+**Four version traps, all caught by reading rather than assuming** — `AGENTS.md` earning its keep:
+
+1. `prisma` CLI resolved to **8.0.0-rc.19** while `@prisma/client` was 7.10.0. Pinned the CLI to 7.
+2. Prisma 7 moved connection URLs out of `schema.prisma` into `prisma.config.ts`, and `directUrl` is
+   not a valid key there at all — only `url` and `shadowDatabaseUrl`. Neon's pooler handled the
+   migration fine; if one ever stalls, `prisma migrate dev --url "$DIRECT_DATABASE_URL"`.
+3. Prisma 7 dropped the bundled query engine — `new PrismaClient()` now requires a driver adapter
+   (`@prisma/adapter-pg`).
+4. **Next 16 deprecated `middleware.ts` in favour of `proxy.ts`**, exporting `proxy()`. Route
+   protection is done in the page via `auth()` instead, since the docs warn Proxy may be deployed to
+   a CDN and should not rely on shared modules.
+
+Verified: `npx tsc --noEmit` and `npm run build` both exit 0; dev server on **:3002** (clear of
+comp-crm's 3000/3001) serves `/sign-in` 200 with the Google button, and `/` returns 307 to it when
+signed out. `.env` confirmed untracked by git; `.env.example` committed.
+
+**Blocked on two things only Priyanshu can do:** add `http://localhost:3002/api/auth/callback/google`
+to the existing OAuth client's redirect URIs, and create a free Groq key at console.groq.com. The
+first blocks the end-to-end sign-in test; the second blocks stage 2.
+
+Files: `1abc- Proj/dossier/**` (new repo), `updates.md`.
+
+Next: stage 1 — Gmail sync populating `Contact` and `Activity` from the inbox.
+
+## 2026-10-05 — Onboarding done; the agent is blocked on Vercel card verification
+
+Sign-in, onboarding and the Context key all went through. The agent cannot run: **every model call
+returns 403 `customer_verification_required`.**
+
+```
+AI Gateway requires a valid credit card on file to service requests.
+upstreamType: 'customer_verification_required', statusCode: 403
+[agent] ⨯ session MODEL_CALL_FAILED
+```
+
+This is **not** a bad key. The key authenticates — `/eve/v1/info` still reports
+`endpoint.connected: true`. Vercel simply will not serve AI Gateway requests on a hobby account
+until a card is on file, free monthly credits included. Adding the card is the user's to do; an
+agent must not enter payment details.
+
+**No workaround exists in this codebase.** Every model call routes through the gateway
+(`agent/lib/model.ts` only chooses an id string; `/eve/v1/info` shows
+`routing: {kind: "gateway", target: "zai"}`), and `docs/environment.md:117` lists
+`AI_GATEWAY_API_KEY` as simply "The model". There is no direct-provider key path to fall back on,
+so switching models in Settings changes nothing — they all go the same way.
+
+**State in Neon, confirmed by SQL:** 1 user; the Google `account` row already carries
+`gmail.readonly` and `calendar.readonly` alongside the openid scopes, so **Gmail and Calendar were
+granted at sign-in** and Phase 3's "connect the inbox" step needs no separate action;
+`appSetting.contextDevApiKey` set; `agentModelId` still null (the agent falls back to its own
+default, `zai/glm-5.2-fast`); 0 contacts; 1 `agentTask`.
+
+That single task is `workspace-profile`, reason *"The company using this CRM said what its website
+is (priyanshuroy.com)"* — started 18:44 UTC, `finishedAt` null, `outcome` null. It is the first
+casualty of the 403, and `workspaceProfile.website` and `.narrative` are both still null as a
+result. It should complete on retry once the gateway serves requests.
+
+Also worth knowing: Context.dev's free tier is 500 credits/month with brand retrievals at 10 credits
+each — roughly 50 company lookups before it runs dry.
+
+Files: `updates.md`, `plan.md`. No code changed.
+
+Next: user adds a card at Vercel, then the `workspace-profile` task retries and Phase 3 can actually
+be judged.
+
+## 2026-10-04 — Phases 1–2 finished: Neon, Google OAuth, AI Gateway, CRM booted
+
+The three account-dependent blockers from 2026-10-02 are resolved and the CRM runs locally against
+Neon. All changes are in `comp-crm\.env` (outside this repo, gitignored there). No portfolio code
+touched.
+
+**Neon.** Project `portfolio-crm` (`steep-snow-81337543`), AWS Asia Pacific 1 (Singapore), branch
+`production`, database `neondb`, Postgres 18.6, free plan. `DATABASE_URL` (pooled) and
+`DIRECT_DATABASE_URL` (unpooled, same string minus `-pooler`) both written. `bun run db:deploy`
+applied all **56 migrations**; `information_schema` now reports **61 tables** in `public`.
+
+Both Neon and Vercel MCP servers were re-authorised by the user via `/mcp`, which finally resolved
+the 2026-10-02 cwd-casing/token-wipe problem. Neon MCP supplied the connection string directly, so
+the role password never passed through the browser. Vercel MCP authorised *without* the personal
+team scope (`403 forbidden … scope "priyanshuroyofficial19-9388s-projects"`), so the AI Gateway key
+was created by hand instead; re-auth selecting that scope would fix it for next time.
+
+**Sign-in account changed to `priyanshuroy.official19@gmail.com`.** `ALLOWED_SIGN_IN` previously
+named the academics address, but `.env.local` sets `CONTACT_TO_EMAIL=priyanshuroy.official19@gmail.com`
+and `priyanshuroy.academics@gmail.com` survives only as `FALLBACK_TO_EMAIL` in
+`src/app/contact/actions.ts:35`. Enquiries land in the official19 inbox, and that is the inbox the
+agent has to read, so the CRM signs in as that account. Neon, Vercel and Resend are all on it too.
+
+**Google OAuth.** Cloud project `portfolio-crm-510617`; Gmail API and Google Calendar API enabled;
+consent screen External + Testing with official19 as the sole test user; Web client with the single
+redirect URI `http://localhost:3001/api/auth/callback/google`. That URI was confirmed against
+`packages/auth/README.md:74` (`<API_URL>/api/auth/callback/google`) rather than taken from the plan —
+`docs/environment.md:71` notes every OAuth redirect is built from `API_URL`, never `APP_URL`, and
+`API_URL` is left at its `localhost:3001` default.
+
+**Two boot problems, both resolved by reading the repo rather than guessing:**
+
+1. `bun run dev` dies with *Cannot run interactive task "agent#dev" without Terminal UI* — `turbo run
+   dev` needs a TTY this session doesn't have. `turbo.json:69` already defines a `dev:headless` task
+   and `apps/agent` implements it as `eve dev --no-ui`. So the working split is
+   `bunx turbo run dev --filter=app --filter=api` plus `bunx turbo run dev:headless --filter=agent`.
+2. `packages/db/scripts/require-local-db.ts` refuses any `dev` against a non-local host, because
+   "dev can rewrite or drop schemas". That is a blanket warning over the whole dev family, not an
+   accurate description of this path: `prepare-dev.ts:6-24` runs only `prisma migrate deploy`
+   (additive, already applied), `prisma generate` (local codegen) and `prisma migrate diff
+   --exit-code` (read-only). With Neon standing in for Docker, this guard will fire on every single
+   `dev` run, so `ALLOW_REMOTE_DB=1` is now a permanent requirement of this install. It is currently
+   passed per-invocation and is **not** in `.env` — deliberately, since persisting it would also
+   disarm the guard for genuinely destructive scripts like `db:reset`.
+
+**Verified.** Ports 3000/3001/2000 all listening. API logs `Database connected` and
+`API listening on http://localhost:3001`. `GET http://localhost:3000/sign-in` → **200**.
+`GET http://127.0.0.1:2000/eve/v1/info` returns diagnostics with
+`model.endpoint = {kind: "gateway", connected: true, credential: "api-key"}`, which proves the AI
+Gateway key is valid. Default model is `zai/glm-5.2-fast` — changeable in the CRM's settings UI.
+
+**Not yet verified:** Google sign-in has not been exercised. The client secret was transcribed from
+a screenshot and its final character is ambiguous between capital `I` and lowercase `l`; if sign-in
+fails with an invalid-client error, re-copy it from the Clients page before looking anywhere else.
+
+Files: `comp-crm\.env`, `plan.md`, `updates.md`.
+
+Next: user signs in at `localhost:3000`, then Phase 3 — connect Google under Settings → Connections,
+pick a model, trigger `POST /internal/sync/google` with `Authorization: Bearer <CRON_SECRET>`, and
+judge the agent's output before touching the portfolio in Phase 4.
+
 ## 2026-10-03 — Correction: the case-study date was an edit artifact in the wrong place
 
 Reverting the visible date shipped in `83af7df` and replacing it. File:

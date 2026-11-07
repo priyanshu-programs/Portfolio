@@ -105,6 +105,73 @@
   animation: marquee 40s linear infinite;
 }
 
+/* Testimonials (Testimonials.tsx): the track holds two identical copies of the
+   list, so translating it by -50% loops with no seam. --tm-duration, --tm-gap
+   and --tm-gutter are set inline by the component. Unlayered on purpose: these
+   must beat Tailwind's `overflow-hidden` on the wrapper in strip mode. */
+.tm-marquee {
+  animation: marquee var(--tm-duration, 56s) linear infinite;
+}
+
+.tm-marquee-wrap:hover .tm-marquee,
+.tm-marquee-wrap:focus-within .tm-marquee,
+.tm-marquee[data-paused] {
+  animation-play-state: paused;
+}
+
+/* Edge fades: the cards fade out across the page gutter on each side, so the
+   row reads as sitting on the same margins as the heading. On the still
+   wrapper, not the moving track, so the fade stays put while cards pass. */
+.tm-marquee-wrap {
+  --tm-fade: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--tm-gutter),
+    #000 calc(100% - var(--tm-gutter)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--tm-fade);
+  mask-image: var(--tm-fade);
+}
+
+/* Each copy carries its own trailing gap, so the loop point matches the gaps
+   between cards. */
+.tm-copy {
+  padding-right: var(--tm-gap);
+}
+
+/* Strip mode, for phones and reduced motion: no drift. The row becomes a
+   native swipe strip with snap, starting on the heading's gutter, and the
+   duplicate copy is hidden. */
+@media (max-width: 767px), (prefers-reduced-motion: reduce) {
+  .tm-marquee {
+    animation: none;
+  }
+
+  .tm-marquee-wrap {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--tm-gutter);
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .tm-marquee-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tm-copy {
+    padding-inline: var(--tm-gutter);
+  }
+
+  /* The duplicate copy, and the repeats that pad a short list (Testimonials
+     MIN_PER_COPY): strip mode shows each person once. */
+  .tm-copy-dup,
+  .tm-fill {
+    display: none;
+  }
+}
+
 /* ── Ambient Glow Breath ─────────────────────────────── */
 @keyframes glow-breathe {
 

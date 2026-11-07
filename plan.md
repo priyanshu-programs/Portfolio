@@ -1,9 +1,32 @@
 # Comp AI CRM × priyanshuroy.com — setup plan
 
-**Status:** Phase 0 complete. Phase 1–2 mostly done — Bun installed, CRM cloned to `..\comp-crm`,
-`.env` pre-filled with generated secrets. **Blocked on three things only you can create:** a Neon
-database URL, a Google OAuth client, and a Vercel AI Gateway key. Nothing in the portfolio's runtime
-behaviour has changed.
+> # ⛔ ABANDONED 2026-10-05 — superseded by `../dossier`
+>
+> **Do not continue this plan.** Phases 0–2 completed and the install runs, but the agent is
+> permanently blocked: Vercel's AI Gateway returns `403 customer_verification_required` and serves no
+> model call until a credit card is on file. Every model call in that codebase routes through the
+> gateway, so there is no workaround.
+>
+> The replacement is **Dossier** — the same core loop, built from scratch on infrastructure that
+> needs no payment method. **Its plan and log live in its own repo: `../dossier/plan.md` and
+> `../dossier/updates.md`.** Read those, not this file, for anything CRM-related.
+>
+> `../comp-crm` stays on disk as a behavioural reference. Everything below is kept because the
+> account setup it describes (Neon, the Google OAuth client) is still in use by Dossier — and
+> because the reason it was abandoned is worth not rediscovering.
+
+**Status:** Phases 0–2 complete (2026-10-04), Phase 3 reached and halted. The CRM runs locally
+against Neon: app `:3000`, API `:3001`, agent `:2000`, all 56 migrations applied. Sign-in,
+onboarding and Gmail/Calendar scopes all went through. The agent cannot run. Nothing in the
+portfolio's runtime behaviour was ever changed.
+
+**Two standing facts about running it,** both learned the hard way on 2026-10-04:
+
+- `bun run dev` **fails** — `turbo run dev` needs a TTY for the agent task. Use two commands:
+  `bunx turbo run dev --filter=app --filter=api` and `bunx turbo run dev:headless --filter=agent`.
+- Every `dev` run needs `ALLOW_REMOTE_DB=1`, because `require-local-db.ts` refuses non-local hosts
+  and this install uses Neon rather than Docker. Kept out of `.env` on purpose so the guard still
+  protects `db:reset` and friends.
 
 **What this is:** standing up [trycompai/crm](https://github.com/trycompai/crm) (an open-source,
 agent-driven CRM) and wiring this portfolio's contact form into it, so enquiries become tracked,
@@ -49,25 +72,29 @@ Shell is Windows PowerShell 5.1: no `&&`, no `cp`. All commands below are writte
 Re-run `graft build` after any sizeable code change to keep the graph fresh (`graft check` fails if
 it's stale).
 
-## Phase 1 — Prerequisites and accounts
+## Phase 1 — Prerequisites and accounts ✅
 
-- [ ] Install Bun: `npm install -g bun`, then `bun --version`
-- [ ] Postgres: create a free [Neon](https://neon.tech) project, copy its connection string
-      (Docker + `docker compose up -d` is the documented alternative; it's one env var to switch)
-- [ ] Mint three secrets, once each:
-      `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
-      → `BETTER_AUTH_SECRET`, `AGENT_BRIDGE_SECRET`, `CRON_SECRET`
-- [ ] Google Cloud OAuth client:
-      - [ ] New project; enable **Gmail API** + **Google Calendar API**
-      - [ ] Consent screen: **External + Testing**, add `priyanshuroy.academics@gmail.com` as a test
-            user (Internal requires Workspace)
-      - [ ] OAuth client (Web application), redirect URI
-            `http://localhost:3001/api/auth/callback/google`
-      - [ ] Known gotcha: Google expires refresh tokens after 7 days while an app is in Testing
-            status, so the Gmail connection may need re-authorising weekly. Confirm in Phase 3.
-- [ ] [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key → `AI_GATEWAY_API_KEY`. Required
-      locally (on Vercel it's handled by OIDC). *Which* model runs is a setting in the CRM's UI.
+- [x] Bun installed (1.4.2)
+- [x] Neon project `portfolio-crm` (`steep-snow-81337543`), Singapore, Postgres 18.6, branch
+      `production`, database `neondb`. `DATABASE_URL` pooled + `DIRECT_DATABASE_URL` unpooled.
+      Docker was never needed.
+- [x] `BETTER_AUTH_SECRET`, `AGENT_BRIDGE_SECRET`, `CRON_SECRET` minted
+- [x] Google Cloud OAuth client, project `portfolio-crm-510617`:
+      - [x] Gmail API + Google Calendar API enabled
+      - [x] Consent screen **External + Testing**, sole test user
+            `priyanshuroy.official19@gmail.com`
+      - [x] Web client, redirect URI `http://localhost:3001/api/auth/callback/google`, confirmed
+            against `packages/auth/README.md:74` rather than assumed
+      - [ ] Still unconfirmed: whether Google's 7-day Testing-status refresh expiry actually bites.
+            Watch for it in Phase 3.
+- [x] `AI_GATEWAY_API_KEY` created on the hobby plan and **verified live** — the agent's
+      `/eve/v1/info` reports `endpoint.connected: true`. Default model `zai/glm-5.2-fast`.
 - [ ] Optional, skippable: `PERPLEXITY_API_KEY`, `GITHUB_TOKEN`, `BLOB_READ_WRITE_TOKEN`
+
+**`ALLOWED_SIGN_IN` is `priyanshuroy.official19@gmail.com`, not the academics address.** The contact
+form delivers to official19 (`.env.local`'s `CONTACT_TO_EMAIL`); academics is only
+`FALLBACK_TO_EMAIL` in `src/app/contact/actions.ts:35`. The CRM has to read the inbox the enquiries
+actually land in.
 
 ## Phase 2 — Clone and boot the CRM locally
 
@@ -79,16 +106,19 @@ Copy-Item .env.example .env
 bun install
 ```
 
-- [ ] Fill `.env`: `DATABASE_URL` (Neon), `BETTER_AUTH_SECRET`,
-      `ALLOWED_SIGN_IN="priyanshuroy.academics@gmail.com"` (unset means **nobody** can sign in —
+- [x] Fill `.env`: `DATABASE_URL` (Neon), `BETTER_AUTH_SECRET`,
+      `ALLOWED_SIGN_IN="priyanshuroy.official19@gmail.com"` (unset means **nobody** can sign in —
       that's the whole auth model), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AI_GATEWAY_API_KEY`,
       `AGENT_URL="http://127.0.0.1:2000"` (the docs insist on `127.0.0.1`, not `localhost`),
       `AGENT_BRIDGE_SECRET`, `CRON_SECRET`
-- [ ] Decide on `CRM_TELEMETRY_DISABLED="1"` — the CRM sends one counts-only event daily by default
-- [ ] Check `package.json` for the real script name, then migrate: `bun run db:deploy` (README) or
-      `bun run db:migrate` (docs/setup.md) — one of the two is stale
+- [x] `CRM_TELEMETRY_DISABLED="1"` — confirmed in the API's boot log: *"Anonymous usage telemetry is
+      off for this install."*
+- [x] Migrated with `bun run db:deploy` — 56 migrations, 61 tables. `db:deploy` is the live script;
+      `db:migrate` also exists but is the interactive one.
 - [ ] Optional demo data: `bun run db:seed` (find the reset path before trusting real data)
-- [ ] `bun run dev` → app `:3000`, API `:3001`, agent `:2000`
+- [x] Boot — **not** `bun run dev`, which fails without a TTY. Two commands, each with
+      `ALLOW_REMOTE_DB=1`: `bunx turbo run dev --filter=app --filter=api` and
+      `bunx turbo run dev:headless --filter=agent`.
 - [ ] `graft init` inside `comp-crm`
 
 **Port conflict:** the CRM app and this portfolio both want `:3000`. When both run, start the

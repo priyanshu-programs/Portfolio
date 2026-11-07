@@ -7,6 +7,7 @@ const SINGLETONS: { id: string; title: string }[] = [
   { id: "about", title: "About Page" },
   { id: "contact", title: "Contact Page" },
   { id: "services", title: "Services Section" },
+  { id: "testimonials", title: "Testimonials Section" },
   { id: "ctaCollage", title: "CTA / Collage Section" },
   { id: "floatingMenu", title: "Floating Menu" },
 ];

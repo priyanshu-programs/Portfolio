@@ -133,6 +133,18 @@ export interface CtaContent {
   twoHands?: string;
 }
 
+/** One home-page testimonial card. `photo` is a resolved CDN URL. */
+export interface TestimonialItem {
+  key: string;
+  name: string;
+  role?: string;
+  company?: string;
+  quote: string;
+  photo: string;
+  /** Uploaded video file URL; when set, the card's "Watch video" plays it. */
+  video?: string;
+}
+
 export interface FloatingMenuContent {
   tags?: string[];
   image?: string;
@@ -280,6 +292,8 @@ export interface SiteContent {
   contact?: ContactContent;
   services?: ServicesContent;
   cta?: CtaContent;
+  /** Visible testimonials, in Studio order. Empty or missing hides the section. */
+  testimonials?: TestimonialItem[];
   floatingMenu?: FloatingMenuContent;
   workProjects?: WorkProject[];
   /** Up to 4 projects pinned for the home page's Recent Work section. */

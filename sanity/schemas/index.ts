@@ -8,6 +8,7 @@ import { hero } from "./hero";
 import { services } from "./services";
 import { siteSettings } from "./siteSettings";
 import { tag } from "./tag";
+import { testimonials } from "./testimonials";
 import { workProject } from "./workProject";
 
 export const schemaTypes = [
@@ -18,6 +19,7 @@ export const schemaTypes = [
   aboutWriteups,
   contact,
   services,
+  testimonials,
   ctaCollage,
   floatingMenu,
   tag,
@@ -31,6 +33,7 @@ export const singletonTypes = new Set([
   "about",
   "contact",
   "services",
+  "testimonials",
   "ctaCollage",
   "floatingMenu",
 ]);

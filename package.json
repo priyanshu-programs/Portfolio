@@ -12,6 +12,7 @@
     "sanity:build": "sanity build",
     "sanity:deploy": "sanity deploy",
     "sanity:seed": "node --env-file=.env.local --import tsx scripts/sanity/seed.mts",
+    "sanity:seed-testimonials": "node --env-file=.env.local --import tsx scripts/sanity/seed-testimonials.mts",
     "sanity:verify": "node --env-file=.env.local --import tsx scripts/sanity/verify.mts",
     "sanity:check-webhook": "node --env-file=.env.local --import tsx scripts/sanity/check-webhook.mts",
     "sanity:delete-placeholders": "node --env-file=.env.local --import tsx scripts/sanity/delete-placeholder-projects.mts",

@@ -10,6 +10,7 @@ import type {
   AboutParagraph,
   AboutSlot,
   SocialLink,
+  TestimonialItem,
 } from "./types";
 
 /**
@@ -118,6 +119,17 @@ interface RawSiteContent {
     handRight?: unknown;
     twoHands?: unknown;
   } | null;
+  testimonials?: {
+    items?: {
+      _key?: string;
+      name?: string;
+      role?: string;
+      company?: string;
+      quote?: string;
+      photo?: unknown;
+      video?: string | null;
+    }[] | null;
+  } | null;
   floatingMenu?: { tags?: string[]; image?: unknown } | null;
   /**
    * `tags[]->` yields `null` for any entry whose reference doesn't resolve — a
@@ -215,6 +227,21 @@ function normalize(raw: RawSiteContent): SiteContent {
           twoHands: buildImageUrl(raw.cta.twoHands, 1600),
         }
       : undefined,
+    // An entry without a name, quote or resolvable photo can't fill a card,
+    // so it's dropped rather than rendered half-empty.
+    testimonials: raw.testimonials?.items
+      ?.map(
+        (t, i): TestimonialItem => ({
+          key: t._key ?? String(i),
+          name: t.name?.trim() ?? "",
+          role: t.role,
+          company: t.company,
+          quote: t.quote?.trim() ?? "",
+          photo: buildImageUrl(t.photo, 800) ?? "",
+          video: t.video ?? undefined,
+        })
+      )
+      .filter((t) => Boolean(t.name && t.quote && t.photo)),
     floatingMenu: raw.floatingMenu
       ? {
           tags: raw.floatingMenu.tags,

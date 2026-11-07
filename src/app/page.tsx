@@ -3,6 +3,7 @@
 import Hero from "@/components/sections/Hero";
 import AboutWork from "@/components/sections/AboutWork";
 import Services from "@/components/sections/Services";
+import Testimonials from "@/components/sections/Testimonials";
 import CtaCollage from "@/components/sections/CtaCollage";
 import PageWrapper from "@/components/transition/PageWrapper";
 import LandingIntro from "@/components/transition/LandingIntro";
@@ -29,6 +30,7 @@ export default function Home() {
           <div id="services">
             <Services />
           </div>
+          <Testimonials />
           {isDesktop && <CtaCollage />}
         </main>
       </PageWrapper>
