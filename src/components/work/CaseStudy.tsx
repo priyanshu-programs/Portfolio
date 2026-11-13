@@ -139,12 +139,17 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
         >
           {/* Title + service label */}
           <header className="pt-[clamp(3.5rem,8vw,6.5rem)] text-center">
+            {/* The inner line carries 0.2em of bottom padding so descenders
+                (the "j" in PujoGo) sit inside the clip mask at line-height
+                0.95; the h1's matching negative margin keeps the spacing
+                below unchanged. Padding the line, not the mask, keeps the
+                yPercent: 110 start fully hidden, since the offset grows with it. */}
             <h1
-              className="font-medium tracking-[-0.04em]"
+              className="-mb-[0.2em] font-medium tracking-[-0.04em]"
               style={{ fontSize: "clamp(3.25rem, 11vw, calc(6.75rem * var(--fluid-scale)))", lineHeight: 0.95 }}
             >
               <span className="block overflow-hidden pb-2">
-                <span className="headline-line block will-change-transform">
+                <span className="headline-line block pb-[0.2em] will-change-transform">
                   {project.title}
                 </span>
               </span>
