@@ -11,6 +11,7 @@ import { useSiteContent } from "@/components/ContentProvider";
 import { caseStudyTheme } from "@/lib/color";
 import { FLATTEN_CLASS } from "@/lib/caseStudyAdvance";
 import ViewLiveCursor from "@/components/ui/ViewLiveCursor";
+import MagneticLivePill from "@/components/ui/MagneticLivePill";
 import type { CaseStudyContent } from "@/lib/sanity/types";
 
 const DEFAULT_NAME = "Priyanshu Roy";
@@ -23,22 +24,6 @@ const GUTTER = "clamp(1.5rem, 10vw, 12.5rem)";
  *  surplus becomes margin. Must match /work's column cap. */
 const COLUMN_MAX = "calc(1680px * var(--fluid-scale))";
 
-const ArrowUpRight = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <line x1="6" y1="18" x2="18" y2="6" />
-    <polyline points="9 6 18 6 18 15" />
-  </svg>
-);
 
 export default function CaseStudy({ project }: { project: CaseStudyContent }) {
   const content = useSiteContent();
@@ -258,19 +243,7 @@ export default function CaseStudy({ project }: { project: CaseStudyContent }) {
                 )}
 
                 {project.liveUrl && (
-                  <a
-                    href={project.liveUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-8 inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-[0.875rem] transition-colors duration-300"
-                    style={{
-                      borderColor: "var(--cs-line)",
-                      color: "var(--cs-ink)",
-                    }}
-                  >
-                    View live
-                    <ArrowUpRight />
-                  </a>
+                  <MagneticLivePill href={project.liveUrl}>View live</MagneticLivePill>
                 )}
               </div>
 

@@ -315,6 +315,30 @@ html.lenis body {
   cursor: none !important;
 }
 
+/* Case-study "View live" pill (MagneticLivePill). With a fine pointer and
+   motion allowed, JS stamps `data-magnetic` and drives the fill disc; the
+   label flips to the page colour while `data-active` is set. Everywhere else
+   (touch, reduced motion) and on keyboard focus, a plain CSS fill stands in. */
+.live-pill {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.live-pill__content {
+  transition: color 0.35s ease;
+}
+.live-pill[data-active] .live-pill__content {
+  color: var(--cs-bg);
+}
+.live-pill:not([data-magnetic]):hover,
+.live-pill:not([data-magnetic]):active,
+.live-pill:focus-visible {
+  background-color: var(--cs-ink);
+  color: var(--cs-bg) !important;
+}
+.live-pill:focus-visible {
+  outline: 2px solid var(--cs-ink);
+  outline-offset: 3px;
+}
+
 /* ── Resets ───────────────────────────────────────────── */
 
 /* Keep `overflow` off <html>, in both axes.
